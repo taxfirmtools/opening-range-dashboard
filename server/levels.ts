@@ -34,6 +34,15 @@ async function loadOne(
     return { ...spec, ...trend };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Quote unavailable";
-    return { ...spec, last: null, change: null, percent: null, days: [], error: message };
+    return {
+      ...spec,
+      last: null,
+      change: null,
+      percent: null,
+      dayChange: null,
+      dayPercent: null,
+      days: [],
+      error: message,
+    };
   }
 }

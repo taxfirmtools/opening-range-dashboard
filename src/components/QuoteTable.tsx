@@ -76,6 +76,9 @@ function TableShell({
         <thead>
           <tr>
             <th scope="col">Symbol</th>
+            <th scope="col" className="spark-col">
+              <span className="sr-only">Today</span>
+            </th>
             <th scope="col" className="num">
               Last
             </th>
@@ -112,6 +115,9 @@ function QuoteRow({ quote, onRemove }: { quote: Quote; onRemove: (symbol: string
         <span className="symbol">{quote.symbol}</span>
         {quote.name ? <span className="name">{quote.name}</span> : null}
       </td>
+      <td>
+        <Sparkline points={quote.sparkline} />
+      </td>
       <td className="num price">{formatPrice(quote.last)}</td>
       <td className={change ? `num chg ${change.direction}` : "num chg flat"}>{change ? change.text : "—"}</td>
       <td className="num">{formatPrice(quote.orHigh)}</td>
@@ -141,6 +147,9 @@ function SkeletonRow({ symbol }: { symbol: string }) {
         <span className="symbol">{symbol}</span>
         <span className="skeleton name-bar" />
       </td>
+      <td>
+        <span className="skeleton spark-bar" />
+      </td>
       <td className="num">
         <span className="skeleton price-bar" />
       </td>
@@ -161,6 +170,29 @@ function SkeletonRow({ symbol }: { symbol: string }) {
       </td>
       <td />
     </tr>
+  );
+}
+
+function Sparkline({ points }: { points: number[] | undefined }) {
+  const values = (points ?? []).filter((value) => Number.isFinite(value));
+  if (values.length < 2) return <span className="sparkline sparkline-empty" aria-hidden="true" />;
+  const width = 84;
+  const height = 28;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min;
+  const pad = 2;
+  const d = values
+    .map((value, index) => {
+      const x = (index / (values.length - 1)) * width;
+      const y = span === 0 ? height / 2 : pad + (1 - (value - min) / span) * (height - pad * 2);
+      return `${index === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg className="sparkline" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+      <path d={d} />
+    </svg>
   );
 }
 

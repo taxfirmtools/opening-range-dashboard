@@ -210,6 +210,7 @@ function sampleQuote(symbol: string, signal: Signal, last: number, orLow: number
     sessionDate: "2026-11-02",
     sessionStatus: "Regular hours",
     orBarCount: 15,
+    sparkline: [],
   };
 }
 

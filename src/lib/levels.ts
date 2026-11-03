@@ -11,6 +11,9 @@ export interface LevelTrend {
   /** Newest minus the oldest of the last three trading days. */
   change: number | null;
   percent: number | null;
+  /** Newest minus the previous session's close. */
+  dayChange: number | null;
+  dayPercent: number | null;
   days: LevelPoint[];
 }
 
@@ -64,11 +67,24 @@ export function summarizeThreeDayTrend(input: {
   const ordered = [...byDate.entries()].sort((a, b) => a[1].t - b[1].t);
   const days = ordered.slice(-3).map(([date, point]) => ({ date, close: point.close }));
   const last = days.at(-1)?.close ?? null;
+  const priorClose = ordered.length >= 2 ? ordered[ordered.length - 2]?.[1].close : undefined;
+  const day = moveFrom(last, priorClose);
   const oldest = days.length >= 2 ? days[0]?.close : undefined;
   if (last == null || oldest == null) {
-    return { last, change: null, percent: null, days };
+    return { last, change: null, percent: null, ...day, days };
   }
   const change = last - oldest;
   const percent = oldest !== 0 ? (change / oldest) * 100 : null;
-  return { last, change, percent, days };
+  return { last, change, percent, ...day, days };
+}
+
+function moveFrom(
+  last: number | null,
+  prior: number | undefined,
+): { dayChange: number | null; dayPercent: number | null } {
+  if (last == null || prior == null || !Number.isFinite(prior)) {
+    return { dayChange: null, dayPercent: null };
+  }
+  const dayChange = last - prior;
+  return { dayChange, dayPercent: prior !== 0 ? (dayChange / prior) * 100 : null };
 }

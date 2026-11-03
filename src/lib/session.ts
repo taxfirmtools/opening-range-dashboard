@@ -137,12 +137,14 @@ export function toQuote(
   symbol: string,
   name: string | null,
   analysis: Analysis,
+  sparkline: number[] = [],
   error?: string,
 ): Quote {
   return {
     symbol,
     name,
     ...analysis,
+    sparkline,
     ...(error ? { error } : {}),
   };
 }
@@ -161,6 +163,7 @@ export function unavailableQuote(symbol: string, now: Date, error: string): Quot
     sessionDate: session.sessionDate,
     sessionStatus: session.sessionStatus,
     orBarCount: 0,
+    sparkline: [],
     error,
   };
 }

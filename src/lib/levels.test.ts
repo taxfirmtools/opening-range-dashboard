@@ -18,6 +18,8 @@ describe("three-day level trend", () => {
     expect(trend.days.map((day) => day.date)).toEqual(["2026-11-03", "2026-11-04", "2026-11-05"]);
     expect(trend.days.map((day) => day.close)).toEqual([72, 71, 75]);
     expect(trend.last).toBe(75);
+    expect(trend.dayChange).toBeCloseTo(4);
+    expect(trend.dayPercent).toBeCloseTo((4 / 71) * 100);
     expect(trend.change).toBeCloseTo(3);
     expect(trend.percent).toBeCloseTo((3 / 72) * 100);
   });
@@ -29,6 +31,7 @@ describe("three-day level trend", () => {
     });
     expect(trend.last).toBe(4.9);
     expect(trend.change).toBeNull();
+    expect(trend.dayChange).toBeNull();
     expect(trend.days).toHaveLength(1);
   });
 });

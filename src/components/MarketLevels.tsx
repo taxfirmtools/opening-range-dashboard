@@ -42,7 +42,10 @@ function LevelCard({ level }: { level: MarketLevel }) {
         <p className="level-error">{level.error}</p>
       ) : (
         <>
-          <p className="level-price">{formatLevel(level.unit, level.last)}</p>
+          <p className="level-price">
+            <span>{formatLevel(level.unit, level.last)}</span>
+            <DayChange level={level} />
+          </p>
           <p className={`level-trend ${direction ?? "flat"}`}>
             {trendCopy(level)}
           </p>
@@ -59,6 +62,20 @@ function LevelCard({ level }: { level: MarketLevel }) {
         </>
       )}
     </article>
+  );
+}
+
+function DayChange({ level }: { level: MarketLevel }) {
+  const direction = trendDirection(level.dayChange);
+  if (level.dayChange == null || direction == null) return <span className="level-day flat">—</span>;
+  const move = formatMove(level.unit, level.dayChange);
+  const percent =
+    level.dayPercent != null ? ` (${formatSignedPercent(level.dayPercent)})` : "";
+  return (
+    <span className={`level-day ${direction}`}>
+      {move}
+      {percent} day
+    </span>
   );
 }
 

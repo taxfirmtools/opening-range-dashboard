@@ -34,6 +34,8 @@ export interface Quote {
   sessionStatus: SessionStatus;
   /** One-minute bars that fell inside 9:30–9:44 ET. */
   orBarCount: number;
+  /** Intraday closes for the sparkline, oldest first. */
+  sparkline: number[];
   error?: string;
 }
 
