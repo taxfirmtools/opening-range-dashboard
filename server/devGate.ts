@@ -2,7 +2,7 @@ import type { Plugin } from "vite";
 import { gateDecision, readDashboardPassword } from "./gate";
 import { loginDocument } from "./loginPage";
 
-/** Blocks the dev page, source, and demo bundle until the shared password is set and the browser has signed in. */
+/** Blocks the dev page and source until the shared password is set and the browser has signed in. */
 export function dashboardDevGate(): Plugin {
   return {
     name: "dashboard-gate",

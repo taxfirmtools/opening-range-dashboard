@@ -5,6 +5,7 @@ import { parseSymbolList } from "../src/lib/symbols";
 import type { Snapshot } from "../src/lib/types";
 import { loginHandler, requireSession } from "./auth";
 import { resolveDistDir } from "./distPath";
+import { loadMarketLevels } from "./levels";
 import { yahooProvider } from "./yahoo";
 
 export const app = express();
@@ -30,6 +31,12 @@ app.use(requireSession);
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, provider: yahooProvider.id });
+});
+
+app.get("/api/levels", async (_req, res) => {
+  const body = await loadMarketLevels();
+  res.set("Cache-Control", "no-store");
+  res.json(body);
 });
 
 app.get("/api/opening-range", async (req, res) => {

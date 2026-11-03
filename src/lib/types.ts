@@ -12,9 +12,7 @@ export type Signal = "above" | "below" | "inside" | "forming" | "unavailable";
 
 export type SessionStatus = "Range forming" | "Regular hours" | "Session closed";
 
-export type DataSource = "yahoo" | "demo";
-
-export type DemoScenario = "forming" | "open" | "closed";
+export type DataSource = "yahoo";
 
 export interface SessionInfo {
   phase: Phase;
@@ -44,8 +42,6 @@ export interface Snapshot {
   delayed: boolean;
   asOf: string;
   note: string;
-  /** Set on demo snapshots so the UI never mixes scenarios. */
-  scenario?: DemoScenario;
   session: SessionInfo;
   quotes: Quote[];
 }

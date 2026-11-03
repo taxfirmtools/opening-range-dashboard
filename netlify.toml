@@ -24,7 +24,7 @@
   status = 200
   force = true
 
-# Everything else, including /api, /assets, and demo files, goes through the same gate.
+# Everything else, including /api and /assets, goes through the same gate.
 [[redirects]]
   from = "/*"
   to = "/.netlify/functions/server/:splat"

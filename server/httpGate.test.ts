@@ -23,6 +23,10 @@ describe("password gate over HTTP", () => {
         headers: { "x-forwarded-for": "203.0.113.10" },
       });
       expect(locked.status).toBe(401);
+      const levelsLocked = await fetch(`${base}/api/levels`, {
+        headers: { "x-forwarded-for": "203.0.113.10" },
+      });
+      expect(levelsLocked.status).toBe(401);
       const page = await fetch(base, { headers: { "x-forwarded-for": "203.0.113.10" } });
       const html = await page.text();
       expect(html).toContain('type="password"');
@@ -75,6 +79,8 @@ describe("password gate over HTTP", () => {
       expect(await page.text()).toContain("DASHBOARD_PASSWORD");
       const api = await fetch(`http://127.0.0.1:${port}/api/opening-range?symbols=SPY`);
       expect(api.status).toBe(503);
+      const levels = await fetch(`http://127.0.0.1:${port}/api/levels`);
+      expect(levels.status).toBe(503);
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
     }

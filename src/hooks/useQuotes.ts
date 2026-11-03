@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
 import { fetchLiveQuotes } from "../lib/client";
-import { buildDemoSnapshot } from "../lib/demo";
-import type { DemoScenario, Snapshot } from "../lib/types";
+import type { Snapshot } from "../lib/types";
 
 const POLL_MS = 20_000;
 
-export type DataMode = "live" | "demo";
-
-export function useQuotes(symbols: string[], mode: DataMode, scenario: DemoScenario) {
+export function useQuotes(symbols: string[]) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
@@ -29,10 +26,7 @@ export function useQuotes(symbols: string[], mode: DataMode, scenario: DemoScena
         return;
       }
       try {
-        const next =
-          mode === "demo"
-            ? buildDemoSnapshot(requested, scenario)
-            : await fetchLiveQuotes(requested, controller.signal);
+        const next = await fetchLiveQuotes(requested, controller.signal);
         if (ignore) return;
         setSnapshot(next);
         setError(null);
@@ -44,7 +38,7 @@ export function useQuotes(symbols: string[], mode: DataMode, scenario: DemoScena
         setError(message);
         setStale(hasData);
       }
-      if (!ignore && mode === "live" && requested.length > 0) {
+      if (!ignore && requested.length > 0) {
         timer = setTimeout(() => {
           void load();
         }, POLL_MS);
@@ -60,7 +54,7 @@ export function useQuotes(symbols: string[], mode: DataMode, scenario: DemoScena
       controller.abort();
       if (timer) clearTimeout(timer);
     };
-  }, [symbolKey, mode, scenario, reloadToken]);
+  }, [symbolKey, reloadToken]);
 
   return {
     snapshot,

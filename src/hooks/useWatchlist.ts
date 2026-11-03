@@ -1,35 +1,36 @@
 import { useEffect, useState } from "react";
-import { DEFAULT_WATCHLIST, MAX_WATCHLIST } from "../config/watchlist";
-import { normalizeSymbol } from "../lib/symbols";
-
-const STORAGE_KEY = "opening-range-watchlist";
+import { DEFAULT_WATCHLIST } from "../config/watchlist";
+import {
+  WATCHLIST_STORAGE_KEY,
+  applyWatchlist,
+  readStoredWatchlist,
+  serializeWatchlist,
+} from "../lib/watchlistStorage";
 
 export function useWatchlist() {
-  const [symbols, setSymbols] = useState<string[]>(readWatchlist);
+  const [symbols, setSymbols] = useState<string[]>(() => readStoredWatchlist(readRaw()));
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(symbols));
-    } catch {
-      // Private mode can reject storage. The list still works for this visit.
-    }
+    writeRaw(serializeWatchlist(symbols));
   }, [symbols]);
 
   function add(raw: string): string | null {
-    const symbol = normalizeSymbol(raw);
-    if (!symbol) return "Enter a ticker like AAPL";
-    if (symbols.includes(symbol)) return `${symbol} is already on the list`;
-    if (symbols.length >= MAX_WATCHLIST) return `The list holds ${MAX_WATCHLIST} symbols`;
-    setSymbols((current) => [...current, symbol]);
-    return null;
+    const next = applyWatchlist(symbols, { type: "add", raw });
+    if (!next.error) commit(next.symbols);
+    return next.error;
   }
 
   function remove(symbol: string) {
-    setSymbols((current) => current.filter((item) => item !== symbol));
+    commit(applyWatchlist(symbols, { type: "remove", symbol }).symbols);
   }
 
   function reset() {
-    setSymbols([...DEFAULT_WATCHLIST]);
+    commit(applyWatchlist(symbols, { type: "reset" }).symbols);
+  }
+
+  function commit(next: string[]) {
+    writeRaw(serializeWatchlist(next));
+    setSymbols(next);
   }
 
   const isDefault =
@@ -39,21 +40,18 @@ export function useWatchlist() {
   return { symbols, add, remove, reset, isDefault };
 }
 
-function readWatchlist(): string[] {
+function readRaw(): string | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [...DEFAULT_WATCHLIST];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [...DEFAULT_WATCHLIST];
-    const symbols: string[] = [];
-    for (const item of parsed) {
-      const symbol = normalizeSymbol(String(item));
-      if (!symbol || symbols.includes(symbol)) continue;
-      symbols.push(symbol);
-      if (symbols.length >= MAX_WATCHLIST) break;
-    }
-    return symbols;
+    return localStorage.getItem(WATCHLIST_STORAGE_KEY);
   } catch {
-    return [...DEFAULT_WATCHLIST];
+    return null;
+  }
+}
+
+function writeRaw(value: string) {
+  try {
+    localStorage.setItem(WATCHLIST_STORAGE_KEY, value);
+  } catch {
+    // Private mode can reject storage. The list still works for this visit.
   }
 }

@@ -128,12 +128,6 @@ h1 {
   border: 1px solid var(--line);
 }
 
-.banner.demo {
-  background: rgba(240, 195, 106, 0.12);
-  color: #f6dfb0;
-  border-color: rgba(240, 195, 106, 0.35);
-}
-
 .banner.warn {
   background: rgba(255, 139, 152, 0.08);
   color: var(--below-ink);
@@ -182,6 +176,7 @@ h1 {
 
 .stat span { color: var(--muted); font-size: 12px; }
 
+.stat.all strong { color: var(--text); }
 .stat.above strong { color: var(--above); }
 .stat.below strong { color: var(--below); }
 .stat.inside strong { color: var(--inside); }
@@ -442,6 +437,62 @@ tbody tr:hover { background-color: rgba(255, 255, 255, 0.025); }
   100% { background-position: 0 0; }
 }
 
+.levels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.level {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--line);
+}
+
+.level h2 {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.level-symbol {
+  margin: 2px 0 0;
+  color: var(--faint);
+  font-size: 12px;
+  font-family: var(--mono);
+}
+
+.level-price {
+  margin: 8px 0 0;
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+.level-trend { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.level-trend.up { color: var(--above); }
+.level-trend.down { color: var(--below); }
+
+.level-days {
+  display: flex;
+  gap: 16px;
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+}
+
+.level-days li { display: flex; flex-direction: column; gap: 2px; min-width: 72px; }
+.level-days span { color: var(--faint); font-size: 12px; }
+.level-days strong { font-family: var(--mono); font-weight: 500; font-size: 13px; }
+
+.level-loading, .level-error { margin: 0; color: var(--muted); }
+
 .panel-foot {
   padding: 12px 14px 14px;
   color: var(--faint);
@@ -490,6 +541,7 @@ tbody tr:hover { background-color: rgba(255, 255, 255, 0.025); }
   .top { grid-template-columns: 1fr; gap: 16px; }
   .status-block { text-align: left; }
   .toolbar-actions { justify-content: flex-start; }
+  .levels { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

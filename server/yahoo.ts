@@ -6,6 +6,8 @@ const USER_AGENT = "Mozilla/5.0 (compatible; OpeningRangeDashboard/1.0)";
 
 const cache = new Map<string, { expires: number; value: SymbolBars }>();
 const inflight = new Map<string, Promise<SymbolBars>>();
+const chartCache = new Map<string, { expires: number; value: unknown }>();
+const chartInflight = new Map<string, Promise<unknown>>();
 
 export const yahooProvider: BarsProvider = {
   id: "yahoo",
@@ -30,9 +32,31 @@ export const yahooProvider: BarsProvider = {
 };
 
 async function fetchSymbol(symbol: string): Promise<SymbolBars> {
-  const url =
-    "https://query1.finance.yahoo.com/v8/finance/chart/" +
-    `${encodeURIComponent(symbol)}?interval=1m&range=5d&includePrePost=false`;
+  const payload = await fetchYahooChart(symbol, "interval=1m&range=5d&includePrePost=true");
+  return parseYahooChart(symbol, payload);
+}
+
+/** Yahoo chart JSON. `includePrePost=true` keeps premarket and after-hours prints. */
+export async function fetchYahooChart(symbol: string, query: string): Promise<unknown> {
+  const key = `${symbol}?${query}`;
+  const cached = chartCache.get(key);
+  if (cached && cached.expires > Date.now()) return cached.value;
+  const pending = chartInflight.get(key);
+  if (pending) return pending;
+  const request = requestChart(symbol, query)
+    .then((value) => {
+      chartCache.set(key, { expires: Date.now() + TTL_MS, value });
+      return value;
+    })
+    .finally(() => {
+      chartInflight.delete(key);
+    });
+  chartInflight.set(key, request);
+  return request;
+}
+
+async function requestChart(symbol: string, query: string): Promise<unknown> {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?${query}`;
   let response: Response;
   try {
     response = await fetch(url, {
@@ -48,6 +72,5 @@ async function fetchSymbol(symbol: string): Promise<SymbolBars> {
   if (response.status === 404) throw new Error(`No market data for ${symbol}`);
   if (response.status === 429) throw new Error(`Yahoo Finance is busy for ${symbol}. Try again in a moment.`);
   if (!response.ok) throw new Error(`Yahoo Finance returned ${response.status} for ${symbol}`);
-  const payload: unknown = await response.json();
-  return parseYahooChart(symbol, payload);
+  return response.json();
 }

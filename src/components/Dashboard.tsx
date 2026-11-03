@@ -1,21 +1,15 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { DEMO_NOW, type DemoScenario } from "../lib/demo";
 import { formatEtClock, formatSessionDay } from "../lib/format";
 import { describeSession, statusHint } from "../lib/session";
 import type { SortMode } from "../lib/sort";
-import type { Quote, SessionInfo, Snapshot } from "../lib/types";
-import { useQuotes, type DataMode } from "../hooks/useQuotes";
+import type { Quote, SessionInfo } from "../lib/types";
+import { useQuotes } from "../hooks/useQuotes";
 import { useWatchlist } from "../hooks/useWatchlist";
+import { MarketLevels } from "./MarketLevels";
 import { QuoteTable, type SignalFilter } from "./QuoteTable";
 
 export function Dashboard() {
   const watchlist = useWatchlist();
-  const [mode, setMode] = useStoredState<DataMode>("opening-range-mode", "live", ["live", "demo"]);
-  const [scenario, setScenario] = useStoredState<DemoScenario>("opening-range-scenario", "open", [
-    "forming",
-    "open",
-    "closed",
-  ]);
   const [sortMode, setSortMode] = useStoredState<SortMode>("opening-range-sort", "breakouts", [
     "breakouts",
     "list",
@@ -23,30 +17,31 @@ export function Dashboard() {
   const [filter, setFilter] = useState<SignalFilter>("all");
   const [draft, setDraft] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
-  const { snapshot, error, stale, reload } = useQuotes(watchlist.symbols, mode, scenario);
+  const { snapshot, error, stale, reload } = useQuotes(watchlist.symbols);
 
-  const view = snapshotMatches(snapshot, mode, scenario) ? snapshot : null;
+  useEffect(() => {
+    try {
+      localStorage.removeItem("opening-range-mode");
+      localStorage.removeItem("opening-range-scenario");
+    } catch {
+      // Ignore storage failures.
+    }
+  }, []);
+
+  const view = snapshot?.source === "yahoo" ? snapshot : null;
   const listedQuotes = view
     ? view.quotes.filter((quote) => watchlist.symbols.includes(quote.symbol))
     : null;
   const quotesForTable =
     listedQuotes == null || (listedQuotes.length === 0 && watchlist.symbols.length > 0) ? null : listedQuotes;
-  const session = view
-    ? view.session
-    : describeSession(mode === "demo" ? new Date(DEMO_NOW[scenario]) : new Date());
-  const clockAt = mode === "demo" ? new Date(DEMO_NOW[scenario]) : null;
-  const hintNow = clockAt ?? new Date();
+  const session = view ? view.session : describeSession(new Date());
   const activeFilter = session.phase === "forming" ? "all" : filter;
 
   useEffect(() => {
-    if (mode === "demo") {
-      document.title = "Opening range (demo)";
-      return;
-    }
     const outside =
       quotesForTable?.filter((quote) => quote.signal === "above" || quote.signal === "below").length ?? 0;
     document.title = outside > 0 ? `${outside} outside · Opening range` : "Opening range";
-  }, [mode, quotesForTable]);
+  }, [quotesForTable]);
 
   function submitSymbol(event: FormEvent) {
     event.preventDefault();
@@ -68,21 +63,15 @@ export function Dashboard() {
           </div>
         </div>
         <div className="status-block">
-          <MarketClock mode={mode} at={clockAt} />
+          <MarketClock />
           <p className="session" data-testid="session-status">
             <span className={`status-dot ${session.phase}`} />
             {session.sessionStatus}
             <span className="session-date"> · {formatSessionDay(session.sessionDate)}</span>
           </p>
-          <p className="hint">{statusHint(session, hintNow)}</p>
+          <p className="hint">{statusHint(session, new Date())}</p>
         </div>
       </header>
-
-      {mode === "demo" ? (
-        <p className="banner demo" role="status">
-          <strong>Demo data.</strong> These prices are simulated, not the market.
-        </p>
-      ) : null}
 
       {stale && view ? (
         <p className="banner warn" role="status">
@@ -110,27 +99,6 @@ export function Dashboard() {
               List order
             </button>
           </div>
-          <div className="segment" role="group" aria-label="Data source">
-            <button type="button" data-testid="mode-live" aria-pressed={mode === "live"} onClick={() => setMode("live")}>
-              Live
-            </button>
-            <button type="button" data-testid="mode-demo" aria-pressed={mode === "demo"} onClick={() => setMode("demo")}>
-              Demo
-            </button>
-          </div>
-          {mode === "demo" ? (
-            <div className="segment" role="group" aria-label="Demo session">
-              <button type="button" aria-pressed={scenario === "forming"} onClick={() => setScenario("forming")}>
-                Forming
-              </button>
-              <button type="button" aria-pressed={scenario === "open"} onClick={() => setScenario("open")}>
-                Open
-              </button>
-              <button type="button" aria-pressed={scenario === "closed"} onClick={() => setScenario("closed")}>
-                Closed
-              </button>
-            </div>
-          ) : null}
           <form className="add-form" onSubmit={submitSymbol}>
             <label className="sr-only" htmlFor="add-symbol">
               Add symbol
@@ -171,7 +139,7 @@ export function Dashboard() {
         {watchlist.symbols.length === 0 ? (
           <EmptyState onReset={watchlist.reset} />
         ) : !view && error ? (
-          <FeedError message={error} onRetry={reload} onDemo={() => setMode("demo")} />
+          <FeedError message={error} onRetry={reload} />
         ) : (
           <QuoteTable
             symbols={watchlist.symbols}
@@ -181,11 +149,11 @@ export function Dashboard() {
             onRemove={watchlist.remove}
           />
         )}
+        <MarketLevels />
         <footer className="panel-foot">
-          {mode === "demo"
-            ? "Simulated 1-minute prints. Switch to Live for Yahoo Finance prices."
-            : "Yahoo Finance, unofficial and sometimes delayed. Refreshes about every 20 seconds. Range is 9:30:00–9:44:59 ET."}
-          {view && mode === "live" ? ` Updated ${formatEtClock(new Date(view.asOf))}.` : ""}
+          Yahoo Finance, unofficial and sometimes delayed. Refreshes about every 20 seconds. The last price includes
+          premarket and after-hours. The opening range is regular session only, 9:30:00–9:44:59 ET.
+          {view ? ` Updated ${formatEtClock(new Date(view.asOf))}.` : ""}
         </footer>
       </section>
 
@@ -225,9 +193,16 @@ function Stats({
   const inside = quotes.filter((quote) => quote.signal === "inside").length;
   return (
     <div className="stats" role="group" aria-label="Filter by signal">
-      <StatButton label="Above the range" count={above} tone="above" pressed={filter === "above"} onClick={() => onFilter(filter === "above" ? "all" : "above")} />
-      <StatButton label="Below the range" count={below} tone="below" pressed={filter === "below"} onClick={() => onFilter(filter === "below" ? "all" : "below")} />
-      <StatButton label="Inside" count={inside} tone="inside" pressed={filter === "inside"} onClick={() => onFilter(filter === "inside" ? "all" : "inside")} />
+      <StatButton
+        label="Full list"
+        count={quotes.length}
+        tone="all"
+        pressed={filter === "all"}
+        onClick={() => onFilter("all")}
+      />
+      <StatButton label="Above the range" count={above} tone="above" pressed={filter === "above"} onClick={() => onFilter("above")} />
+      <StatButton label="Below the range" count={below} tone="below" pressed={filter === "below"} onClick={() => onFilter("below")} />
+      <StatButton label="Inside" count={inside} tone="inside" pressed={filter === "inside"} onClick={() => onFilter("inside")} />
     </div>
   );
 }
@@ -241,7 +216,7 @@ function StatButton({
 }: {
   label: string;
   count: number;
-  tone: "above" | "below" | "inside";
+  tone: "all" | "above" | "below" | "inside";
   pressed: boolean;
   onClick: () => void;
 }) {
@@ -265,15 +240,7 @@ function EmptyState({ onReset }: { onReset: () => void }) {
   );
 }
 
-function FeedError({
-  message,
-  onRetry,
-  onDemo,
-}: {
-  message: string;
-  onRetry: () => void;
-  onDemo: () => void;
-}) {
+function FeedError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div className="empty" data-testid="feed-error">
       <h2>Couldn’t load market data</h2>
@@ -282,26 +249,21 @@ function FeedError({
         <button type="button" className="btn primary" onClick={onRetry}>
           Try again
         </button>
-        <button type="button" className="btn" onClick={onDemo}>
-          Use demo data
-        </button>
       </div>
     </div>
   );
 }
 
-function MarketClock({ mode, at }: { mode: DataMode; at: Date | null }) {
+function MarketClock() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    if (mode !== "live") return;
     const id = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(id);
-  }, [mode]);
-  const shown = at ?? now;
+  }, []);
   return (
     <div className="clock-block">
-      <p className="clock">{formatEtClock(shown)}</p>
-      <p className="clock-caption">{mode === "demo" ? "Scenario time" : "New York"}</p>
+      <p className="clock">{formatEtClock(now)}</p>
+      <p className="clock-caption">New York</p>
     </div>
   );
 }
@@ -315,16 +277,6 @@ function Logo() {
       <circle cx="30" cy="14" r="3" fill="#3ddc97" />
     </svg>
   );
-}
-
-function snapshotMatches(
-  snapshot: Snapshot | null,
-  mode: DataMode,
-  scenario: DemoScenario,
-): snapshot is Snapshot {
-  if (!snapshot) return false;
-  if (mode === "demo") return snapshot.source === "demo" && snapshot.scenario === scenario;
-  return snapshot.source === "yahoo";
 }
 
 function useStoredState<T extends string>(key: string, fallback: T, allowed: readonly T[]) {

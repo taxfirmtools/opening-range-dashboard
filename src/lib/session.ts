@@ -77,7 +77,10 @@ export function statusHint(
   if (session.phase === "forming") return "High and low update until 9:45am ET";
   if (session.phase === "open") return "Outside the 9:30–9:45 band is highlighted";
   if (isTradingDay(clock.ymd) && clock.seconds < OPEN_MINUTES * 60) {
-    return "Regular session starts at 9:30am ET";
+    return "Premarket price. The range is the previous regular session.";
+  }
+  if (isTradingDay(clock.ymd) && clock.seconds >= closeMinutesFor(clock.ymd) * 60) {
+    return "After-hours price. The range is today's regular session.";
   }
   return "Showing the latest completed session";
 }
@@ -90,20 +93,20 @@ export function analyzeSession(input: AnalysisInput): Analysis {
   let orHigh: number | null = null;
   let orLow: number | null = null;
   let orBarCount = 0;
-  let lastClose: number | null = null;
-  let lastCloseTime = -1;
+  let latestClose: number | null = null;
+  let latestCloseTime = -1;
 
   for (const bar of input.bars) {
+    // Latest print may be premarket or after-hours. The range below stays regular session only.
+    if (bar.t <= input.now.getTime() && bar.close != null && bar.t >= latestCloseTime) {
+      latestClose = bar.close;
+      latestCloseTime = bar.t;
+    }
+
     if (bar.t > cutoff) continue;
     const clock = nyClock(new Date(bar.t));
     if (clock.ymd !== session.sessionDate) continue;
     if (clock.seconds < OPEN_MINUTES * 60 || clock.seconds >= closeMinutes * 60) continue;
-
-    if (bar.close != null && bar.t >= lastCloseTime) {
-      lastClose = bar.close;
-      lastCloseTime = bar.t;
-    }
-
     if (clock.seconds >= RANGE_LOCK_MINUTES * 60) continue;
     if (bar.high == null || bar.low == null) continue;
     orHigh = orHigh == null ? bar.high : Math.max(orHigh, bar.high);
@@ -111,16 +114,10 @@ export function analyzeSession(input: AnalysisInput): Analysis {
     orBarCount += 1;
   }
 
-  let last = lastClose;
+  let last = latestClose;
   const live = input.livePrice;
-  if (
-    (session.phase === "open" || session.phase === "forming") &&
-    live != null &&
-    Number.isFinite(live)
-  ) {
-    const liveOnSession =
-      input.liveTime == null || nyClock(new Date(input.liveTime)).ymd === session.sessionDate;
-    if (liveOnSession) last = live;
+  if (live != null && Number.isFinite(live) && (input.liveTime == null || input.liveTime >= latestCloseTime)) {
+    last = live;
   }
 
   return {

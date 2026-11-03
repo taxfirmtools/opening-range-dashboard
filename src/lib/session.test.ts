@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_WATCHLIST } from "../config/watchlist";
-import { buildDemoSnapshot } from "./demo";
 import { analyzeSession, describeSession } from "./session";
 import { sortQuotes } from "./sort";
 import { normalizeSymbol, parseSymbolList } from "./symbols";
-import type { Bar } from "./types";
+import type { Bar, Quote, Signal } from "./types";
 import { isTradingDay, nyClock } from "./time";
 import { parseYahooChart } from "./yahooParse";
 
@@ -130,7 +128,7 @@ describe("opening range", () => {
     expect(result.orBarCount).toBe(1);
   });
 
-  it("after the close, ignores a later price and keeps the session close", () => {
+  it("after the close, uses the after-hours price and keeps the regular-session range", () => {
     const result = analyzeSession({
       now: new Date("2026-11-02T16:30:00-05:00"),
       bars,
@@ -138,12 +136,14 @@ describe("opening range", () => {
       liveTime: Date.parse("2026-11-02T16:30:00-05:00"),
     });
     expect(result.phase).toBe("closed");
-    expect(result.last).toBe(103.2);
+    expect(result.orHigh).toBe(103);
+    expect(result.orLow).toBe(99);
+    expect(result.last).toBe(140);
     expect(result.signal).toBe("above");
     expect(result.sessionDate).toBe("2026-11-02");
   });
 
-  it("before the open, shows the previous session instead of premarket prints", () => {
+  it("before the open, keeps the previous regular-session range and shows the premarket price", () => {
     const friday = [
       bar("2026-10-30T09:31:00-04:00", 50, 48, 49),
       bar("2026-10-30T09:44:00-04:00", 51, 49, 50),
@@ -159,7 +159,7 @@ describe("opening range", () => {
     expect(result.sessionDate).toBe("2026-10-30");
     expect(result.orHigh).toBe(51);
     expect(result.orLow).toBe(48);
-    expect(result.last).toBe(51.5);
+    expect(result.last).toBe(99);
     expect(result.signal).toBe("above");
     expect(result.sessionStatus).toBe("Session closed");
   });
@@ -180,39 +180,38 @@ describe("opening range", () => {
   });
 });
 
-describe("demo snapshot", () => {
-  it("shows breakouts when the range is locked and forming before 9:45", () => {
-    const open = buildDemoSnapshot([...DEFAULT_WATCHLIST], "open");
-    expect(open.session.sessionStatus).toBe("Regular hours");
-    expect(open.quotes.find((quote) => quote.symbol === "QQQ")?.signal).toBe("above");
-    expect(open.quotes.find((quote) => quote.symbol === "NVDA")?.signal).toBe("above");
-    expect(open.quotes.find((quote) => quote.symbol === "AAPL")?.signal).toBe("below");
-    expect(open.quotes.find((quote) => quote.symbol === "META")?.signal).toBe("below");
-    expect(open.quotes.find((quote) => quote.symbol === "SPY")?.signal).toBe("inside");
-
-    const forming = buildDemoSnapshot(["SPY"], "forming");
-    expect(forming.quotes[0]?.signal).toBe("forming");
-    expect(forming.quotes[0]?.sessionStatus).toBe("Range forming");
-    expect(forming.quotes[0]?.orBarCount).toBe(10);
-
-    const closed = buildDemoSnapshot(["NVDA"], "closed");
-    expect(closed.session.sessionStatus).toBe("Session closed");
-    expect(closed.quotes[0]?.signal).toBe("above");
-  });
-});
-
 describe("sort", () => {
   it("puts the furthest breakouts first", () => {
-    const quotes = buildDemoSnapshot([...DEFAULT_WATCHLIST], "open").quotes;
-    const sorted = sortQuotes(quotes, "breakouts", [...DEFAULT_WATCHLIST]);
-    expect(sorted[0]?.signal).toBe("above");
-    expect(sorted[1]?.signal).toBe("above");
-    expect(sorted[2]?.signal).toBe("below");
-    expect(sorted.at(-1)?.signal).toBe("inside");
-    const listed = sortQuotes(quotes, "list", [...DEFAULT_WATCHLIST]);
-    expect(listed.map((quote) => quote.symbol)).toEqual([...DEFAULT_WATCHLIST]);
+    const order = ["SPY", "QQQ", "AAPL", "NVDA", "META"];
+    const quotes = [
+      sampleQuote("SPY", "inside", 10, 9, 11),
+      sampleQuote("QQQ", "above", 12, 9, 10),
+      sampleQuote("NVDA", "above", 14, 9, 10),
+      sampleQuote("AAPL", "below", 7, 9, 11),
+      sampleQuote("META", "below", 5, 9, 11),
+    ];
+    const sorted = sortQuotes(quotes, "breakouts", order);
+    expect(sorted.map((quote) => quote.symbol)).toEqual(["NVDA", "QQQ", "META", "AAPL", "SPY"]);
+    const listed = sortQuotes(quotes, "list", order);
+    expect(listed.map((quote) => quote.symbol)).toEqual(order);
   });
 });
+
+function sampleQuote(symbol: string, signal: Signal, last: number, orLow: number, orHigh: number): Quote {
+  return {
+    symbol,
+    name: null,
+    last,
+    previousClose: null,
+    orHigh,
+    orLow,
+    signal,
+    phase: "open",
+    sessionDate: "2026-11-02",
+    sessionStatus: "Regular hours",
+    orBarCount: 15,
+  };
+}
 
 describe("symbols", () => {
   it("normalizes tickers and drops junk", () => {
@@ -255,6 +254,45 @@ describe("yahoo chart parser", () => {
     expect(parsed.bars[0]?.high).toBe(102);
     expect(parsed.bars[1]?.high).toBeNull();
     expect(parsed.bars[0]?.t).toBe(Date.parse("2026-11-02T09:30:00-05:00"));
+  });
+
+  it("uses the newest premarket or after-hours price", () => {
+    const afterHours = parseYahooChart("SPY", {
+      chart: {
+        result: [
+          {
+            meta: {
+              regularMarketPrice: 100,
+              regularMarketTime: 1_700_000_000,
+              postMarketPrice: 101.25,
+              postMarketTime: 1_700_003_000,
+            },
+            timestamp: [],
+            indicators: { quote: [{ high: [], low: [], close: [] }] },
+          },
+        ],
+      },
+    });
+    expect(afterHours.livePrice).toBe(101.25);
+    expect(afterHours.liveTime).toBe(1_700_003_000_000);
+
+    const regular = parseYahooChart("SPY", {
+      chart: {
+        result: [
+          {
+            meta: {
+              regularMarketPrice: 101,
+              regularMarketTime: 1_700_010_000,
+              preMarketPrice: 90,
+              preMarketTime: 1_700_000_000,
+            },
+            timestamp: [],
+            indicators: { quote: [{ high: [], low: [], close: [] }] },
+          },
+        ],
+      },
+    });
+    expect(regular.livePrice).toBe(101);
   });
 
   it("turns a missing symbol into a readable error", () => {

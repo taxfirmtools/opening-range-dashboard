@@ -28,14 +28,31 @@ export function parseYahooChart(symbol: string, payload: unknown): SymbolBars {
   }
 
   const meta = result.meta ?? {};
-  const liveTime = typeof meta.regularMarketTime === "number" ? meta.regularMarketTime * 1000 : null;
+  const live = latestExtendedPrice(meta);
   return {
     name: typeof meta.shortName === "string" ? meta.shortName : null,
     bars,
-    livePrice: finite(meta.regularMarketPrice),
-    liveTime,
-    previousClose: finite(meta.previousClose),
+    livePrice: live.price,
+    liveTime: live.time,
+    previousClose: finite(meta.previousClose) ?? finite(meta.chartPreviousClose),
   };
+}
+
+function latestExtendedPrice(meta: YahooMeta): { price: number | null; time: number | null } {
+  const points = [
+    { price: finite(meta.regularMarketPrice), time: stampMs(meta.regularMarketTime) },
+    { price: finite(meta.preMarketPrice), time: stampMs(meta.preMarketTime) },
+    { price: finite(meta.postMarketPrice), time: stampMs(meta.postMarketTime) },
+  ].filter((point): point is { price: number; time: number | null } => point.price != null);
+  if (points.length === 0) return { price: null, time: null };
+  points.sort((a, b) => (a.time ?? -1) - (b.time ?? -1));
+  const latest = points[points.length - 1];
+  return { price: latest.price, time: latest.time };
+}
+
+function stampMs(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return value < 1e12 ? value * 1000 : value;
 }
 
 function friendlyYahooError(symbol: string, description: string): string {
@@ -47,14 +64,21 @@ function finite(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+interface YahooMeta {
+  shortName?: string;
+  regularMarketPrice?: number;
+  regularMarketTime?: number;
+  preMarketPrice?: number;
+  preMarketTime?: number;
+  postMarketPrice?: number;
+  postMarketTime?: number;
+  previousClose?: number;
+  chartPreviousClose?: number;
+}
+
 interface YahooChart {
   result?: Array<{
-    meta?: {
-      shortName?: string;
-      regularMarketPrice?: number;
-      regularMarketTime?: number;
-      previousClose?: number;
-    };
+    meta?: YahooMeta;
     timestamp?: number[];
     indicators?: {
       quote?: Array<{

@@ -9,11 +9,11 @@ npm install
 DASHBOARD_PASSWORD='choose-a-password' npm run dev
 ```
 
-Open http://localhost:5173 and enter that password. `npm test` checks the session clock, the opening-range math, and the demo scenarios. `npm run build && npm start` serves the production build. The password section below explains the variable.
+Open http://localhost:5173 and enter that password. `npm test` checks the session clock and the opening-range math. `npm run build && npm start` serves the production build. The password section below explains the variable.
 
 ## Password
 
-One shared password protects the page, the market-data API, and demo mode. There are no accounts, no email, and no password reset. Everyone who should see the dashboard uses the same password. It is read from the `DASHBOARD_PASSWORD` environment variable. It is not stored in this repo.
+One shared password protects the page and the market-data API. There are no accounts, no email, and no password reset. Everyone who should see the dashboard uses the same password. It is read from the `DASHBOARD_PASSWORD` environment variable. It is not stored in this repo.
 
 If that variable is missing or blank, the site shows a setup message and does not open the dashboard.
 
@@ -59,13 +59,15 @@ Do not put the password in `netlify.toml` or in a commit.
 
 ## Watchlist
 
-The starting list is SPY, QQQ, AAPL, MSFT, NVDA, AMZN, META, and TSLA in [`src/config/watchlist.ts`](src/config/watchlist.ts). Change that file, or add and remove tickers in the header. Edits in the browser are saved in local storage on this computer until you choose **Reset list**.
+The starting list is SPY, QQQ, AAPL, MSFT, NVDA, AMZN, META, and TSLA in [`src/config/watchlist.ts`](src/config/watchlist.ts). Change that file, or add and remove tickers in the header. Those edits are saved in this browser’s local storage, so they stay after a refresh and after you sign in again. **Reset list** restores the default names. The list is not stored in the login cookie.
+
+Above the table, **Full list** shows every symbol. **Above the range**, **Below the range**, and **Inside** filter the list.
+
+Below the table, oil (CL=F) and the 10-year Treasury (^TNX) show the latest Yahoo level and the move over the last three trading sessions.
 
 ## Data
 
-**Live** uses Yahoo Finance’s public chart endpoint (1-minute bars, no API key). The feed is unofficial. Quotes can be delayed, and nothing here is a brokerage price.
-
-**Demo** is simulated so the screen still works if the feed is down. The amber banner means those prices are not the market. Demo can show the range still forming (9:40am), a regular-hours session with breakouts (10:32am), or a closed session (4:10pm).
+Quotes come from Yahoo Finance’s public chart endpoint (no API key). The feed is unofficial. Quotes can be delayed, and nothing here is a brokerage price. The last price includes premarket and after-hours when Yahoo sends them. The opening range does not.
 
 ### Plug in another feed
 
@@ -77,7 +79,7 @@ The current adapter is [`server/yahoo.ts`](server/yahoo.ts). To switch feeds, im
 
 - The opening range is the high and low of regular-session 1-minute bars from 9:30:00 through 9:44:59 ET. The 9:45 bar is not included.
 - Before 9:45am ET on a trading day, the range is still forming and breakouts are not signaled.
-- Before 9:30am, after the close (4:00pm ET, or 1:00pm on the early closes listed in code), and on weekends and holidays, the dashboard keeps the latest completed session and says the session is closed. The comparison then uses that session’s regular-hours close, not a premarket or after-hours print.
+- Before 9:30am, after the close (4:00pm ET, or 1:00pm on the early closes listed in code), and on weekends and holidays, the dashboard keeps the latest completed session’s opening range and says the session is closed. The last price can still be the premarket or after-hours print.
 - A price equal to the high or the low is still inside. Above means strictly above the high. Below means strictly below the low.
 
 ## Limits
