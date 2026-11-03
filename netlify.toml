@@ -1,0 +1,29 @@
+# Netlify runs the Express app as a function so the page, login, and data routes
+# share one password gate. DASHBOARD_PASSWORD is set in the Netlify UI, not here.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  external_node_modules = ["express"]
+  included_files = ["dist/**"]
+
+# The site root is a real path, and the splat rule does not match it.
+[[redirects]]
+  from = "/"
+  to = "/.netlify/functions/server"
+  status = 200
+  force = true
+
+# Everything else, including /api, /assets, and demo files, goes through the same gate.
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/server/:splat"
+  status = 200
+  force = true
