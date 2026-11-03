@@ -33,8 +33,8 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true, provider: yahooProvider.id });
 });
 
-app.get("/api/levels", async (_req, res) => {
-  const body = await loadMarketLevels();
+app.get("/api/levels", async (req, res) => {
+  const body = await loadMarketLevels(new Date(), { fresh: req.query.fresh === "1" });
   res.set("Cache-Control", "no-store");
   res.json(body);
 });
@@ -51,7 +51,7 @@ app.get("/api/opening-range", async (req, res) => {
   const quotes = await Promise.all(
     symbols.map(async (symbol) => {
       try {
-        const data = await yahooProvider.getSymbol(symbol);
+        const data = await yahooProvider.getSymbol(symbol, { fresh: req.query.fresh === "1" });
         const analysis = analyzeSession({
           now,
           bars: data.bars,

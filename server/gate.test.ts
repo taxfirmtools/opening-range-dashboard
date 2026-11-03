@@ -54,11 +54,15 @@ describe("dashboard password", () => {
 describe("login page", () => {
   it("shows setup instructions or a password form, and nothing else", () => {
     const setup = loginDocument("setup");
+    expect(setup).toContain("Piper Terminal");
+    expect(setup).not.toContain("Opening range");
     expect(setup).toContain("DASHBOARD_PASSWORD");
     expect(setup).not.toContain("<form");
     expect(setup).not.toContain("id=\"root\"");
 
     const wrong = loginDocument("wrong");
+    expect(wrong).toContain("Piper Terminal");
+    expect(wrong).not.toContain("Opening range");
     expect(wrong).toContain("Wrong password.");
     expect(wrong).toContain('type="password"');
     expect(wrong).toContain('action="/api/login"');

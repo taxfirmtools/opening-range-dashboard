@@ -60,5 +60,5 @@ export interface BarsProvider {
   readonly label: string;
   /** True when this is not a brokerage real-time feed. */
   readonly delayed: boolean;
-  getSymbol(symbol: string): Promise<SymbolBars>;
+  getSymbol(symbol: string, options?: { fresh?: boolean }): Promise<SymbolBars>;
 }

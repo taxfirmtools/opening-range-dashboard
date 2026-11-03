@@ -13,12 +13,15 @@ export const yahooProvider: BarsProvider = {
   id: "yahoo",
   label: "Yahoo Finance",
   delayed: true,
-  getSymbol(symbol: string) {
-    const cached = cache.get(symbol);
-    if (cached && cached.expires > Date.now()) return Promise.resolve(cached.value);
+  getSymbol(symbol: string, options?: { fresh?: boolean }) {
+    const fresh = options?.fresh === true;
+    if (!fresh) {
+      const cached = cache.get(symbol);
+      if (cached && cached.expires > Date.now()) return Promise.resolve(cached.value);
+    }
     const pending = inflight.get(symbol);
     if (pending) return pending;
-    const request = fetchSymbol(symbol)
+    const request = fetchSymbol(symbol, fresh)
       .then((value) => {
         cache.set(symbol, { expires: Date.now() + TTL_MS, value });
         return value;
@@ -31,16 +34,22 @@ export const yahooProvider: BarsProvider = {
   },
 };
 
-async function fetchSymbol(symbol: string): Promise<SymbolBars> {
-  const payload = await fetchYahooChart(symbol, "interval=1m&range=5d&includePrePost=true");
+async function fetchSymbol(symbol: string, fresh = false): Promise<SymbolBars> {
+  const payload = await fetchYahooChart(symbol, "interval=1m&range=5d&includePrePost=true", { fresh });
   return parseYahooChart(symbol, payload);
 }
 
 /** Yahoo chart JSON. `includePrePost=true` keeps premarket and after-hours prints. */
-export async function fetchYahooChart(symbol: string, query: string): Promise<unknown> {
+export async function fetchYahooChart(
+  symbol: string,
+  query: string,
+  options?: { fresh?: boolean },
+): Promise<unknown> {
   const key = `${symbol}?${query}`;
-  const cached = chartCache.get(key);
-  if (cached && cached.expires > Date.now()) return cached.value;
+  if (!options?.fresh) {
+    const cached = chartCache.get(key);
+    if (cached && cached.expires > Date.now()) return cached.value;
+  }
   const pending = chartInflight.get(key);
   if (pending) return pending;
   const request = requestChart(symbol, query)

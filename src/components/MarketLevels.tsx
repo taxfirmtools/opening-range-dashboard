@@ -2,8 +2,8 @@ import { formatPrice, formatSessionDay } from "../lib/format";
 import type { MarketLevel } from "../lib/levels";
 import { useLevels } from "../hooks/useLevels";
 
-export function MarketLevels() {
-  const { snapshot, error } = useLevels();
+export function MarketLevels({ refreshToken = 0 }: { refreshToken?: number }) {
+  const { snapshot, error } = useLevels(refreshToken);
 
   if (!snapshot && error) {
     return (

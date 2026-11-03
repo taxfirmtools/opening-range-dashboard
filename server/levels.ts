@@ -9,17 +9,21 @@ const SPECS: Array<Pick<MarketLevel, "id" | "label" | "symbol" | "unit">> = [
 
 const DAILY_QUERY = "interval=1d&range=1mo&includePrePost=true";
 
-export async function loadMarketLevels(now = new Date()): Promise<LevelsSnapshot> {
-  const levels = await Promise.all(SPECS.map((spec) => loadOne(spec, now)));
+export async function loadMarketLevels(
+  now = new Date(),
+  options?: { fresh?: boolean },
+): Promise<LevelsSnapshot> {
+  const levels = await Promise.all(SPECS.map((spec) => loadOne(spec, now, options?.fresh === true)));
   return { source: "yahoo", asOf: now.toISOString(), levels };
 }
 
 async function loadOne(
   spec: Pick<MarketLevel, "id" | "label" | "symbol" | "unit">,
   now: Date,
+  fresh: boolean,
 ): Promise<MarketLevel> {
   try {
-    const payload = await fetchYahooChart(spec.symbol, DAILY_QUERY);
+    const payload = await fetchYahooChart(spec.symbol, DAILY_QUERY, { fresh });
     const parsed = parseYahooChart(spec.symbol, payload);
     const trend = summarizeThreeDayTrend({
       bars: parsed.bars,

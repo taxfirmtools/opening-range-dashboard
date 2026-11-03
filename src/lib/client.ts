@@ -1,11 +1,19 @@
 import type { LevelsSnapshot } from "./levels";
 import type { Snapshot } from "./types";
 
-export async function fetchLiveQuotes(symbols: string[], signal?: AbortSignal): Promise<Snapshot> {
-  const response = await fetch(`/api/opening-range?symbols=${encodeURIComponent(symbols.join(","))}`, {
-    cache: "no-store",
-    signal,
-  });
+export async function fetchLiveQuotes(
+  symbols: string[],
+  signal?: AbortSignal,
+  options?: { fresh?: boolean },
+): Promise<Snapshot> {
+  const fresh = options?.fresh ? "&fresh=1" : "";
+  const response = await fetch(
+    `/api/opening-range?symbols=${encodeURIComponent(symbols.join(","))}${fresh}`,
+    {
+      cache: "no-store",
+      signal,
+    },
+  );
   if (!response.ok) {
     throw new Error(`Market data request failed (${response.status})`);
   }
@@ -16,8 +24,9 @@ export async function fetchLiveQuotes(symbols: string[], signal?: AbortSignal): 
   return body;
 }
 
-export async function fetchLevels(signal?: AbortSignal): Promise<LevelsSnapshot> {
-  const response = await fetch("/api/levels", { cache: "no-store", signal });
+export async function fetchLevels(signal?: AbortSignal, options?: { fresh?: boolean }): Promise<LevelsSnapshot> {
+  const fresh = options?.fresh ? "?fresh=1" : "";
+  const response = await fetch(`/api/levels${fresh}`, { cache: "no-store", signal });
   if (!response.ok) {
     throw new Error(`Market levels request failed (${response.status})`);
   }

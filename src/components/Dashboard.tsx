@@ -17,7 +17,13 @@ export function Dashboard() {
   const [filter, setFilter] = useState<SignalFilter>("all");
   const [draft, setDraft] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
-  const { snapshot, error, stale, reload } = useQuotes(watchlist.symbols);
+  const [levelRefresh, setLevelRefresh] = useState(0);
+  const { snapshot, error, stale, refreshing, reload } = useQuotes(watchlist.symbols);
+
+  function refreshNow() {
+    reload();
+    setLevelRefresh((value) => value + 1);
+  }
 
   useEffect(() => {
     try {
@@ -40,7 +46,7 @@ export function Dashboard() {
   useEffect(() => {
     const outside =
       quotesForTable?.filter((quote) => quote.signal === "above" || quote.signal === "below").length ?? 0;
-    document.title = outside > 0 ? `${outside} outside · Opening range` : "Opening range";
+    document.title = outside > 0 ? `${outside} outside · Piper Terminal` : "Piper Terminal";
   }, [quotesForTable]);
 
   function submitSymbol(event: FormEvent) {
@@ -56,7 +62,7 @@ export function Dashboard() {
         <div className="brand">
           <Logo />
           <div>
-            <h1>Opening range</h1>
+            <h1>Piper Terminal</h1>
             <p className="lede">
               High and low from 9:30 to 9:45am Eastern. Names trading outside that band are highlighted.
             </p>
@@ -91,6 +97,9 @@ export function Dashboard() {
           ready={quotesForTable != null}
         />
         <div className="toolbar-actions">
+          <button type="button" className="btn" onClick={refreshNow} disabled={refreshing} data-testid="refresh">
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
           <div className="segment" role="group" aria-label="Sort">
             <button type="button" aria-pressed={sortMode === "breakouts"} onClick={() => setSortMode("breakouts")}>
               Breakouts first
@@ -149,9 +158,10 @@ export function Dashboard() {
             onRemove={watchlist.remove}
           />
         )}
-        <MarketLevels />
+        <MarketLevels refreshToken={levelRefresh} />
         <footer className="panel-foot">
-          Yahoo Finance, unofficial and sometimes delayed. Refreshes about every 20 seconds. The last price includes
+          Yahoo Finance, unofficial and sometimes delayed. Refreshes about every 20 seconds, or when you choose Refresh.
+          The last price includes
           premarket and after-hours. The opening range is regular session only, 9:30:00–9:44:59 ET.
           {view ? ` Updated ${formatEtClock(new Date(view.asOf))}.` : ""}
         </footer>

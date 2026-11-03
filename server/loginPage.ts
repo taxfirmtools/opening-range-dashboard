@@ -16,7 +16,7 @@ export function loginDocument(state: LoginPageState): string {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${setup ? "Set a password" : "Sign in"} · Opening range</title>
+    <title>${setup ? "Set a password" : "Sign in"} · Piper Terminal</title>
     <style>
       :root { color-scheme: dark; }
       * { box-sizing: border-box; }
@@ -82,7 +82,7 @@ export function loginDocument(state: LoginPageState): string {
   </head>
   <body>
     <main>
-      <h1>Opening range</h1>
+      <h1>Piper Terminal</h1>
       ${body}
     </main>
   </body>
