@@ -76,9 +76,6 @@ function TableShell({
         <thead>
           <tr>
             <th scope="col">Symbol</th>
-            <th scope="col" className="spark-col">
-              <span className="sr-only">Today</span>
-            </th>
             <th scope="col" className="num">
               Last
             </th>
@@ -93,6 +90,9 @@ function TableShell({
             </th>
             <th scope="col" className="track-col">
               Versus range
+            </th>
+            <th scope="col" className="spark-col">
+              <span className="sr-only">Today</span>
             </th>
             <th scope="col">Signal</th>
             <th scope="col">
@@ -115,15 +115,15 @@ function QuoteRow({ quote, onRemove }: { quote: Quote; onRemove: (symbol: string
         <span className="symbol">{quote.symbol}</span>
         {quote.name ? <span className="name">{quote.name}</span> : null}
       </td>
-      <td>
-        <Sparkline points={quote.sparkline} />
-      </td>
       <td className="num price">{formatPrice(quote.last)}</td>
       <td className={change ? `num chg ${change.direction}` : "num chg flat"}>{change ? change.text : "—"}</td>
       <td className="num">{formatPrice(quote.orHigh)}</td>
       <td className="num">{formatPrice(quote.orLow)}</td>
       <td>
         <RangeTrack quote={quote} />
+      </td>
+      <td>
+        <Sparkline points={quote.sparkline} />
       </td>
       <td>
         <span className={`pill ${quote.signal}`} data-testid={`signal-${quote.symbol}`}>
@@ -147,9 +147,6 @@ function SkeletonRow({ symbol }: { symbol: string }) {
         <span className="symbol">{symbol}</span>
         <span className="skeleton name-bar" />
       </td>
-      <td>
-        <span className="skeleton spark-bar" />
-      </td>
       <td className="num">
         <span className="skeleton price-bar" />
       </td>
@@ -164,6 +161,9 @@ function SkeletonRow({ symbol }: { symbol: string }) {
       </td>
       <td>
         <span className="skeleton track-bar" />
+      </td>
+      <td>
+        <span className="skeleton spark-bar" />
       </td>
       <td>
         <span className="skeleton pill-bar" />
