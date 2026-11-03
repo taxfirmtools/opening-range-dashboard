@@ -12,6 +12,9 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
   external_node_modules = ["express"]
+  # Vite publishes to dist/. Copy that directory into the function zip.
+  # The handler reads it from LAMBDA_TASK_ROOT/dist. esbuild emits CommonJS,
+  # so import.meta.url is undefined there and cannot be used to find dist.
   included_files = ["dist/**"]
 
 # The site root is a real path, and the splat rule does not match it.
