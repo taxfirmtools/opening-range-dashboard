@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { fetchLevels } from "../lib/client";
 import type { LevelsSnapshot } from "../lib/levels";
 
-const POLL_MS = 20_000;
+const POLL_MS = 10_000;
 
 export function useLevels(refreshToken = 0) {
   const [snapshot, setSnapshot] = useState<LevelsSnapshot | null>(null);

@@ -60,17 +60,13 @@ app.get("/api/opening-range", async (req, res) => {
           liveTime: data.liveTime,
           previousClose: data.previousClose,
         });
-        return toQuote(
-          symbol,
-          data.name,
-          analysis,
-          daySparkline({
-            now,
-            bars: data.bars,
-            livePrice: data.livePrice,
-            liveTime: data.liveTime,
-          }),
-        );
+        const shape = daySparkline({
+          now,
+          bars: data.bars,
+          livePrice: data.livePrice,
+          liveTime: data.liveTime,
+        });
+        return toQuote(symbol, data.name, analysis, shape.points, shape.poc);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Quote unavailable";
         return unavailableQuote(symbol, now, message);

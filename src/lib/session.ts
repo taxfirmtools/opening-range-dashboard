@@ -1,4 +1,4 @@
-import type { Bar, Phase, Quote, SessionStatus, Signal } from "./types";
+import type { Bar, Phase, Quote, SessionStatus, Signal, SparkPoint } from "./types";
 import {
   OPEN_MINUTES,
   RANGE_LOCK_MINUTES,
@@ -137,7 +137,8 @@ export function toQuote(
   symbol: string,
   name: string | null,
   analysis: Analysis,
-  sparkline: number[] = [],
+  sparkline: SparkPoint[] = [],
+  poc: number | null = null,
   error?: string,
 ): Quote {
   return {
@@ -145,6 +146,7 @@ export function toQuote(
     name,
     ...analysis,
     sparkline,
+    poc,
     ...(error ? { error } : {}),
   };
 }
@@ -164,6 +166,7 @@ export function unavailableQuote(symbol: string, now: Date, error: string): Quot
     sessionStatus: session.sessionStatus,
     orBarCount: 0,
     sparkline: [],
+    poc: null,
     error,
   };
 }

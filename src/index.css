@@ -264,29 +264,59 @@ h1 {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 1000px;
+  min-width: 980px;
 }
 
-.spark-col { width: 96px; }
+.spark-col { width: 210px; }
+
+.spark-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 .sparkline {
   display: block;
-  width: 84px;
+  width: 120px;
   height: 28px;
-  color: var(--above);
+  flex: none;
 }
 
 .sparkline path {
   fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-.sparkline-empty { display: block; width: 84px; height: 28px; }
+.sparkline path.spark-rest {
+  stroke: var(--above);
+  stroke-width: 1.5;
+}
 
-.spark-bar { width: 84px; height: 28px; }
+.sparkline path.spark-open {
+  stroke: var(--forming);
+  stroke-width: 2.25;
+}
+
+.spark-open-band { fill: rgba(240, 195, 106, 0.55); }
+
+.poc-mark {
+  fill: #f7f4ea;
+  stroke: #141922;
+  stroke-width: 1;
+}
+
+.poc {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.sparkline-empty { display: block; width: 120px; height: 28px; }
+
+.spark-bar { width: 120px; height: 28px; }
 
 th {
   text-align: left;

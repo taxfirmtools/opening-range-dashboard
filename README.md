@@ -71,7 +71,7 @@ Quotes come from Yahoo Finance’s public chart endpoint (no API key). The feed 
 
 ### Plug in another feed
 
-`BarsProvider` in [`src/lib/types.ts`](src/lib/types.ts) is the adapter. A provider returns 1-minute bars (`t` as unix milliseconds, plus high, low, and close) and the latest price. The opening-range rules in [`src/lib/session.ts`](src/lib/session.ts) stay the same.
+`BarsProvider` in [`src/lib/types.ts`](src/lib/types.ts) is the adapter. A provider returns 1-minute bars (`t` as unix milliseconds, plus high, low, close, and volume) and the latest price. The opening-range rules in [`src/lib/session.ts`](src/lib/session.ts) stay the same.
 
 The current adapter is [`server/yahoo.ts`](server/yahoo.ts). To switch feeds, implement `BarsProvider` and use it in place of `yahooProvider` in [`server/app.ts`](server/app.ts). The browser only talks to `GET /api/opening-range?symbols=SPY,QQQ`.
 
@@ -86,7 +86,7 @@ The current adapter is [`server/yahoo.ts`](server/yahoo.ts). To switch feeds, im
 
 - Yahoo Finance can rate-limit, change, or drop this unofficial endpoint. There is no API key and no service-level agreement.
 - Prices may be delayed. Do not treat them as a live brokerage quote.
-- The UI refreshes about every 20 seconds. Each symbol is cached on the server for 15 seconds.
+- The UI refreshes about every 10 seconds. Each symbol is cached on the server for 8 seconds, so that poll is not served a stale quote.
 - The holiday and early-close list covers 2025–2027 only. Later years skip weekends but do not know holidays.
 - One-minute bars are stamped at the start of the minute. A missing minute is omitted, and the row says when fewer than 15 opening minutes came back.
 - This is a scanner, not advice to buy or sell.

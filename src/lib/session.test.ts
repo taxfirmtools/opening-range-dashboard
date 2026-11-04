@@ -211,6 +211,7 @@ function sampleQuote(symbol: string, signal: Signal, last: number, orLow: number
     sessionStatus: "Regular hours",
     orBarCount: 15,
     sparkline: [],
+    poc: null,
   };
 }
 
@@ -241,7 +242,7 @@ describe("yahoo chart parser", () => {
               Date.parse("2026-11-02T09:44:00-05:00") / 1000,
             ],
             indicators: {
-              quote: [{ high: [102, null], low: [99, 100], close: [101, 102.5] }],
+              quote: [{ high: [102, null], low: [99, 100], close: [101, 102.5], volume: [1_500, null] }],
             },
           },
         ],
@@ -255,6 +256,8 @@ describe("yahoo chart parser", () => {
     expect(parsed.bars[0]?.high).toBe(102);
     expect(parsed.bars[1]?.high).toBeNull();
     expect(parsed.bars[0]?.t).toBe(Date.parse("2026-11-02T09:30:00-05:00"));
+    expect(parsed.bars[0]?.volume).toBe(1_500);
+    expect(parsed.bars[1]?.volume).toBeNull();
   });
 
   it("uses the newest premarket or after-hours price", () => {

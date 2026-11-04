@@ -24,6 +24,7 @@ export function parseYahooChart(symbol: string, payload: unknown): SymbolBars {
       high: finite(quote?.high?.[i]),
       low: finite(quote?.low?.[i]),
       close: finite(quote?.close?.[i]),
+      volume: finite(quote?.volume?.[i]),
     });
   }
 
@@ -85,6 +86,7 @@ interface YahooChart {
         high?: Array<number | null>;
         low?: Array<number | null>;
         close?: Array<number | null>;
+        volume?: Array<number | null>;
       }>;
     };
   }> | null;

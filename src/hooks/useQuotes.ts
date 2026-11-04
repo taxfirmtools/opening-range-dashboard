@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { fetchLiveQuotes } from "../lib/client";
 import type { Snapshot } from "../lib/types";
 
-const POLL_MS = 20_000;
+const POLL_MS = 10_000;
 
 export function useQuotes(symbols: string[]) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);

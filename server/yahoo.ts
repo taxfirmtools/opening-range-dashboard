@@ -1,7 +1,8 @@
 import { parseYahooChart } from "../src/lib/yahooParse";
 import type { BarsProvider, SymbolBars } from "../src/lib/types";
 
-const TTL_MS = 15_000;
+/** Shorter than the 10-second client poll so each refresh gets a new quote. */
+const TTL_MS = 8_000;
 const USER_AGENT = "Mozilla/5.0 (compatible; OpeningRangeDashboard/1.0)";
 
 const cache = new Map<string, { expires: number; value: SymbolBars }>();

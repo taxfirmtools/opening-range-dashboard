@@ -160,7 +160,7 @@ export function Dashboard() {
         )}
         <MarketLevels refreshToken={levelRefresh} />
         <footer className="panel-foot">
-          Yahoo Finance, unofficial and sometimes delayed. Refreshes about every 20 seconds, or when you choose Refresh.
+          Yahoo Finance, unofficial and sometimes delayed. Refreshes about every 10 seconds, or when you choose Refresh.
           The last price includes
           premarket and after-hours. The opening range is regular session only, 9:30:00–9:44:59 ET.
           {view ? ` Updated ${formatEtClock(new Date(view.asOf))}.` : ""}

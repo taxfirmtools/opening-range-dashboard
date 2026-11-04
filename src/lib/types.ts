@@ -4,6 +4,15 @@ export interface Bar {
   high: number | null;
   low: number | null;
   close: number | null;
+  /** Share volume for this minute, when the feed sends it. */
+  volume?: number | null;
+}
+
+/** One sparkline print, oldest first. */
+export interface SparkPoint {
+  price: number;
+  /** True for a print inside the 9:30–9:45 ET opening window. The 9:45 bar is not included. */
+  opening: boolean;
 }
 
 export type Phase = "forming" | "open" | "closed";
@@ -35,7 +44,12 @@ export interface Quote {
   /** One-minute bars that fell inside 9:30–9:44 ET. */
   orBarCount: number;
   /** Intraday closes for the sparkline, oldest first. */
-  sparkline: number[];
+  sparkline: SparkPoint[];
+  /**
+   * Point of control: the price with the most volume from the 9:30 open
+   * through the latest price. Null before the open or when volume is missing.
+   */
+  poc: number | null;
   error?: string;
 }
 

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { extensionText, formatChange, formatPrice, signalLabel } from "../lib/format";
+import { formatChange, formatPrice } from "../lib/format";
 import { sortQuotes, type SortMode } from "../lib/sort";
-import type { Quote, Signal } from "../lib/types";
+import type { Quote, Signal, SparkPoint } from "../lib/types";
 
 export type SignalFilter = "all" | "above" | "below" | "inside";
 
@@ -92,9 +92,8 @@ function TableShell({
               Versus range
             </th>
             <th scope="col" className="spark-col">
-              <span className="sr-only">Today</span>
+              <span className="sr-only">Today and point of control</span>
             </th>
-            <th scope="col">Signal</th>
             <th scope="col">
               <span className="sr-only">Remove</span>
             </th>
@@ -114,6 +113,7 @@ function QuoteRow({ quote, onRemove }: { quote: Quote; onRemove: (symbol: string
       <td>
         <span className="symbol">{quote.symbol}</span>
         {quote.name ? <span className="name">{quote.name}</span> : null}
+        {quote.error ? <span className="extension">{quote.error}</span> : null}
       </td>
       <td className="num price">{formatPrice(quote.last)}</td>
       <td className={change ? `num chg ${change.direction}` : "num chg flat"}>{change ? change.text : "—"}</td>
@@ -123,13 +123,7 @@ function QuoteRow({ quote, onRemove }: { quote: Quote; onRemove: (symbol: string
         <RangeTrack quote={quote} />
       </td>
       <td>
-        <Sparkline points={quote.sparkline} />
-      </td>
-      <td>
-        <span className={`pill ${quote.signal}`} data-testid={`signal-${quote.symbol}`}>
-          {signalLabel(quote.signal)}
-        </span>
-        <span className="extension">{extensionText(quote)}</span>
+        <Sparkline points={quote.sparkline} poc={quote.poc} />
       </td>
       <td>
         <button type="button" className="remove" onClick={() => onRemove(quote.symbol)} aria-label={`Remove ${quote.symbol}`}>
@@ -165,35 +159,99 @@ function SkeletonRow({ symbol }: { symbol: string }) {
       <td>
         <span className="skeleton spark-bar" />
       </td>
-      <td>
-        <span className="skeleton pill-bar" />
-      </td>
       <td />
     </tr>
   );
 }
 
-function Sparkline({ points }: { points: number[] | undefined }) {
-  const values = (points ?? []).filter((value) => Number.isFinite(value));
-  if (values.length < 2) return <span className="sparkline sparkline-empty" aria-hidden="true" />;
-  const width = 84;
+function Sparkline({ points, poc }: { points: SparkPoint[] | undefined; poc: number | null }) {
+  const values = (points ?? []).filter((point) => Number.isFinite(point.price));
+  return (
+    <span className="spark-cell">
+      {values.length < 2 ? (
+        <span className="sparkline sparkline-empty" aria-hidden="true" />
+      ) : (
+        <SparkChart points={values} poc={poc} />
+      )}
+      <span className="poc" data-testid="poc">
+        <span className="sr-only">Point of control </span>
+        {formatPrice(poc)}
+      </span>
+    </span>
+  );
+}
+
+function SparkChart({ points, poc }: { points: SparkPoint[]; poc: number | null }) {
+  const width = 120;
   const height = 28;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const prices = points.map((point) => point.price);
+  if (poc != null && Number.isFinite(poc)) prices.push(poc);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
   const span = max - min;
   const pad = 2;
-  const d = values
-    .map((value, index) => {
-      const x = (index / (values.length - 1)) * width;
-      const y = span === 0 ? height / 2 : pad + (1 - (value - min) / span) * (height - pad * 2);
-      return `${index === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
-    })
-    .join(" ");
+  const coords = points.map((point, index) => ({
+    x: (index / (points.length - 1)) * width,
+    y: span === 0 ? height / 2 : pad + (1 - (point.price - min) / span) * (height - pad * 2),
+    opening: point.opening,
+    price: point.price,
+  }));
+  const paths = coloredPaths(coords);
+  const band = openingBand(coords, width);
+  const mark = pocMark(coords, poc);
   return (
     <svg className="sparkline" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
-      <path d={d} />
+      {band ? <rect className="spark-open-band" x={band.x} y={0} width={band.width} height={height} /> : null}
+      {paths.map((path) => (
+        <path key={path.key} className={path.opening ? "spark-open" : "spark-rest"} d={path.d} />
+      ))}
+      {mark ? <circle className="poc-mark" cx={mark.x} cy={mark.y} r={2.4} /> : null}
     </svg>
   );
+}
+
+function coloredPaths(coords: Array<{ x: number; y: number; opening: boolean }>) {
+  const paths: Array<{ key: string; opening: boolean; d: string }> = [];
+  let start = 0;
+  for (let index = 1; index <= coords.length; index += 1) {
+    const ended = index === coords.length || coords[index].opening !== coords[start].opening;
+    if (!ended) continue;
+    const draw = start > 0 ? [coords[start - 1], ...coords.slice(start, index)] : coords.slice(start, index);
+    if (draw.length >= 2) {
+      paths.push({
+        key: `${start}-${index}`,
+        opening: coords[start].opening,
+        d: draw.map((point, i) => `${i === 0 ? "M" : "L"}${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" "),
+      });
+    }
+    start = index;
+  }
+  return paths;
+}
+
+function openingBand(coords: Array<{ x: number; opening: boolean }>, width: number) {
+  const opening = coords.filter((point) => point.opening);
+  if (opening.length === 0) return null;
+  const left = opening[0].x;
+  const right = opening[opening.length - 1].x;
+  let x = Math.min(left, right);
+  let bandWidth = Math.max(right - left, 5);
+  if (x + bandWidth > width) x = Math.max(0, width - bandWidth);
+  return { x, width: bandWidth };
+}
+
+function pocMark(coords: Array<{ x: number; y: number; price: number }>, poc: number | null) {
+  if (poc == null || !Number.isFinite(poc) || coords.length === 0) return null;
+  let best = coords[0];
+  let bestDistance = Math.abs(best.price - poc);
+  for (const point of coords) {
+    const distance = Math.abs(point.price - poc);
+    if (distance < bestDistance) {
+      best = point;
+      bestDistance = distance;
+    }
+  }
+  return { x: best.x, y: best.y };
 }
 
 function RangeTrack({ quote }: { quote: Quote }) {
