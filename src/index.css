@@ -264,22 +264,24 @@ h1 {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 980px;
+  min-width: 860px;
 }
 
-.spark-col { width: 210px; }
+tr.quote-main td { border-bottom: 0; padding-bottom: 4px; }
 
-.spark-cell {
-  display: flex;
+tr.spark-row td { padding: 0 14px 16px; }
+
+.spark-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 148px;
+  gap: 16px;
   align-items: center;
-  gap: 8px;
 }
 
 .sparkline {
   display: block;
-  width: 120px;
-  height: 28px;
-  flex: none;
+  width: 100%;
+  height: auto;
 }
 
 .sparkline path {
@@ -290,33 +292,57 @@ table {
 
 .sparkline path.spark-rest {
   stroke: var(--above);
-  stroke-width: 1.5;
+  stroke-width: 2.6;
 }
 
 .sparkline path.spark-open {
   stroke: var(--forming);
-  stroke-width: 2.25;
+  stroke-width: 3.6;
 }
 
-.spark-open-band { fill: rgba(240, 195, 106, 0.55); }
+.spark-open-band { fill: rgba(240, 195, 106, 0.34); }
+
+.poc-level {
+  stroke: rgba(247, 244, 234, 0.9);
+  stroke-width: 1.6;
+  stroke-dasharray: 6 5;
+}
+
+.poc-mark-ring {
+  fill: none;
+  stroke: #f7f4ea;
+  stroke-width: 2;
+}
 
 .poc-mark {
-  fill: #f7f4ea;
+  fill: var(--forming);
   stroke: #141922;
-  stroke-width: 1;
+  stroke-width: 2;
 }
 
-.poc {
+.poc { margin: 0; text-align: right; }
+
+.poc-label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 500;
+}
+
+.poc-price {
+  display: block;
+  margin-top: 3px;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 18px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
-  white-space: nowrap;
 }
 
-.sparkline-empty { display: block; width: 120px; height: 28px; }
+.sparkline-empty { display: block; width: 100%; height: 96px; }
 
-.spark-bar { width: 120px; height: 28px; }
+.spark-bar { display: block; width: 100%; height: 96px; }
 
 th {
   text-align: left;

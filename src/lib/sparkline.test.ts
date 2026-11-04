@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { daySparkline } from "./sparkline";
-import type { Bar } from "./types";
+import { OPENING_LANE_SHARE, daySparkline, plotSession } from "./sparkline";
+import type { Bar, SparkPoint } from "./types";
 
 function bar(iso: string, close: number, volume = 0, high = close, low = close): Bar {
   return { t: Date.parse(iso), high, low, close, volume };
@@ -78,6 +78,25 @@ describe("day sparkline", () => {
       ],
     });
     expect(line.poc).toBe(10);
+  });
+
+  it("gives the opening stretch a readable share of the sparkline", () => {
+    const points: SparkPoint[] = [
+      ...Array.from({ length: 5 }, (_, index) => ({ price: 10 + index, opening: false })),
+      ...Array.from({ length: 4 }, (_, index) => ({ price: 20 + index, opening: true })),
+      ...Array.from({ length: 10 }, (_, index) => ({ price: 30 + index, opening: false })),
+    ];
+    const width = 1_000;
+    const plotted = plotSession(points, width, 96, 22);
+    expect(plotted.band).not.toBeNull();
+    expect(plotted.band?.width).toBeCloseTo(OPENING_LANE_SHARE * width, 5);
+    expect(plotted.coords[5]?.x).toBeCloseTo(plotted.band?.x ?? -1, 5);
+    expect(plotted.coords[8]?.x).toBeCloseTo((plotted.band?.x ?? 0) + (plotted.band?.width ?? 0), 5);
+    expect(plotted.coords[0]?.x).toBe(0);
+    expect(plotted.coords.at(-1)?.x).toBe(width);
+    expect(plotted.coords[8]!.y).toBeLessThan(plotted.coords[5]!.y);
+    expect(plotted.mark).not.toBeNull();
+    expect(plotted.levelY).not.toBeNull();
   });
 
   it("has no point of control before the open", () => {

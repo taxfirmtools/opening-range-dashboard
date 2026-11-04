@@ -1,7 +1,12 @@
 import type { ReactNode } from "react";
 import { formatChange, formatPrice } from "../lib/format";
+import { plotSession } from "../lib/sparkline";
 import { sortQuotes, type SortMode } from "../lib/sort";
 import type { Quote, Signal, SparkPoint } from "../lib/types";
+
+const COLUMNS = 7;
+const CHART_WIDTH = 720;
+const CHART_HEIGHT = 96;
 
 export type SignalFilter = "all" | "above" | "below" | "inside";
 
@@ -91,9 +96,6 @@ function TableShell({
             <th scope="col" className="track-col">
               Versus range
             </th>
-            <th scope="col" className="spark-col">
-              <span className="sr-only">Today and point of control</span>
-            </th>
             <th scope="col">
               <span className="sr-only">Remove</span>
             </th>
@@ -109,103 +111,118 @@ function QuoteRow({ quote, onRemove }: { quote: Quote; onRemove: (symbol: string
   const change = formatChange(quote.last, quote.previousClose);
   const outside = quote.signal === "above" || quote.signal === "below";
   return (
-    <tr data-signal={quote.signal} data-testid={`row-${quote.symbol}`} className={outside ? "is-outside" : undefined}>
-      <td>
-        <span className="symbol">{quote.symbol}</span>
-        {quote.name ? <span className="name">{quote.name}</span> : null}
-        {quote.error ? <span className="extension">{quote.error}</span> : null}
-      </td>
-      <td className="num price">{formatPrice(quote.last)}</td>
-      <td className={change ? `num chg ${change.direction}` : "num chg flat"}>{change ? change.text : "—"}</td>
-      <td className="num">{formatPrice(quote.orHigh)}</td>
-      <td className="num">{formatPrice(quote.orLow)}</td>
-      <td>
-        <RangeTrack quote={quote} />
-      </td>
-      <td>
-        <Sparkline points={quote.sparkline} poc={quote.poc} />
-      </td>
-      <td>
-        <button type="button" className="remove" onClick={() => onRemove(quote.symbol)} aria-label={`Remove ${quote.symbol}`}>
-          ×
-        </button>
-      </td>
-    </tr>
+    <>
+      <tr
+        data-signal={quote.signal}
+        data-testid={`row-${quote.symbol}`}
+        className={outside ? "is-outside quote-main" : "quote-main"}
+      >
+        <td>
+          <span className="symbol">{quote.symbol}</span>
+          {quote.name ? <span className="name">{quote.name}</span> : null}
+          {quote.error ? <span className="extension">{quote.error}</span> : null}
+        </td>
+        <td className="num price">{formatPrice(quote.last)}</td>
+        <td className={change ? `num chg ${change.direction}` : "num chg flat"}>{change ? change.text : "—"}</td>
+        <td className="num">{formatPrice(quote.orHigh)}</td>
+        <td className="num">{formatPrice(quote.orLow)}</td>
+        <td>
+          <RangeTrack quote={quote} />
+        </td>
+        <td>
+          <button type="button" className="remove" onClick={() => onRemove(quote.symbol)} aria-label={`Remove ${quote.symbol}`}>
+            ×
+          </button>
+        </td>
+      </tr>
+      <tr data-signal={quote.signal} className="spark-row">
+        <td colSpan={COLUMNS}>
+          <Sparkline points={quote.sparkline} poc={quote.poc} />
+        </td>
+      </tr>
+    </>
   );
 }
 
 function SkeletonRow({ symbol }: { symbol: string }) {
   return (
-    <tr className="is-loading" data-testid="loading-row">
-      <td>
-        <span className="symbol">{symbol}</span>
-        <span className="skeleton name-bar" />
-      </td>
-      <td className="num">
-        <span className="skeleton price-bar" />
-      </td>
-      <td className="num">
-        <span className="skeleton change-bar" />
-      </td>
-      <td className="num">
-        <span className="skeleton price-bar" />
-      </td>
-      <td className="num">
-        <span className="skeleton price-bar" />
-      </td>
-      <td>
-        <span className="skeleton track-bar" />
-      </td>
-      <td>
-        <span className="skeleton spark-bar" />
-      </td>
-      <td />
-    </tr>
+    <>
+      <tr className="is-loading quote-main" data-testid="loading-row">
+        <td>
+          <span className="symbol">{symbol}</span>
+          <span className="skeleton name-bar" />
+        </td>
+        <td className="num">
+          <span className="skeleton price-bar" />
+        </td>
+        <td className="num">
+          <span className="skeleton change-bar" />
+        </td>
+        <td className="num">
+          <span className="skeleton price-bar" />
+        </td>
+        <td className="num">
+          <span className="skeleton price-bar" />
+        </td>
+        <td>
+          <span className="skeleton track-bar" />
+        </td>
+        <td />
+      </tr>
+      <tr className="is-loading spark-row">
+        <td colSpan={COLUMNS}>
+          <span className="skeleton spark-bar" />
+        </td>
+      </tr>
+    </>
   );
 }
 
 function Sparkline({ points, poc }: { points: SparkPoint[] | undefined; poc: number | null }) {
   const values = (points ?? []).filter((point) => Number.isFinite(point.price));
+  const chart =
+    values.length < 2 ? (
+      <span className="sparkline sparkline-empty" aria-hidden="true" />
+    ) : (
+      <SparkChart points={values} poc={poc} />
+    );
   return (
-    <span className="spark-cell">
-      {values.length < 2 ? (
-        <span className="sparkline sparkline-empty" aria-hidden="true" />
-      ) : (
-        <SparkChart points={values} poc={poc} />
-      )}
-      <span className="poc" data-testid="poc">
-        <span className="sr-only">Point of control </span>
-        {formatPrice(poc)}
-      </span>
-    </span>
+    <div className="spark-panel">
+      {chart}
+      <p className="poc" data-testid="poc">
+        <span className="poc-label">Point of control</span>
+        <span className="poc-price">{formatPrice(poc)}</span>
+      </p>
+    </div>
   );
 }
 
 function SparkChart({ points, poc }: { points: SparkPoint[]; poc: number | null }) {
-  const width = 120;
-  const height = 28;
-  const prices = points.map((point) => point.price);
-  if (poc != null && Number.isFinite(poc)) prices.push(poc);
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
-  const span = max - min;
-  const pad = 2;
-  const coords = points.map((point, index) => ({
-    x: (index / (points.length - 1)) * width,
-    y: span === 0 ? height / 2 : pad + (1 - (point.price - min) / span) * (height - pad * 2),
-    opening: point.opening,
-    price: point.price,
-  }));
-  const paths = coloredPaths(coords);
-  const band = openingBand(coords, width);
-  const mark = pocMark(coords, poc);
+  const plotted = plotSession(points, CHART_WIDTH, CHART_HEIGHT, poc);
+  const paths = coloredPaths(plotted.coords);
   return (
-    <svg className="sparkline" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
-      {band ? <rect className="spark-open-band" x={band.x} y={0} width={band.width} height={height} /> : null}
+    <svg
+      className="sparkline"
+      viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+      width={CHART_WIDTH}
+      height={CHART_HEIGHT}
+      aria-hidden="true"
+    >
+      {plotted.band ? (
+        <rect className="spark-open-band" x={plotted.band.x} y={0} width={plotted.band.width} height={CHART_HEIGHT} />
+      ) : null}
+      {plotted.levelY != null ? (
+        <line className="poc-level" x1={0} x2={CHART_WIDTH} y1={plotted.levelY} y2={plotted.levelY} />
+      ) : null}
       {paths.map((path) => (
         <path key={path.key} className={path.opening ? "spark-open" : "spark-rest"} d={path.d} />
       ))}
-      {mark ? <circle className="poc-mark" cx={mark.x} cy={mark.y} r={2.4} /> : null}
+      {plotted.mark ? (
+        <>
+          <circle className="poc-mark-ring" cx={plotted.mark.x} cy={plotted.mark.y} r={11} />
+          <circle className="poc-mark" cx={plotted.mark.x} cy={plotted.mark.y} r={6.5} />
+        </>
+      ) : null}
     </svg>
   );
 }
@@ -227,31 +244,6 @@ function coloredPaths(coords: Array<{ x: number; y: number; opening: boolean }>)
     start = index;
   }
   return paths;
-}
-
-function openingBand(coords: Array<{ x: number; opening: boolean }>, width: number) {
-  const opening = coords.filter((point) => point.opening);
-  if (opening.length === 0) return null;
-  const left = opening[0].x;
-  const right = opening[opening.length - 1].x;
-  let x = Math.min(left, right);
-  let bandWidth = Math.max(right - left, 5);
-  if (x + bandWidth > width) x = Math.max(0, width - bandWidth);
-  return { x, width: bandWidth };
-}
-
-function pocMark(coords: Array<{ x: number; y: number; price: number }>, poc: number | null) {
-  if (poc == null || !Number.isFinite(poc) || coords.length === 0) return null;
-  let best = coords[0];
-  let bestDistance = Math.abs(best.price - poc);
-  for (const point of coords) {
-    const distance = Math.abs(point.price - poc);
-    if (distance < bestDistance) {
-      best = point;
-      bestDistance = distance;
-    }
-  }
-  return { x: best.x, y: best.y };
 }
 
 function RangeTrack({ quote }: { quote: Quote }) {

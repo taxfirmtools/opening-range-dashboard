@@ -98,6 +98,118 @@ function pointOfControl(bars: Bar[], day: string, nowMs: number): number | null 
   return bestCents == null ? null : bestCents / CENT;
 }
 
+/** Share of the sparkline width reserved for the 9:30–9:45 stretch. */
+export const OPENING_LANE_SHARE = 0.34;
+const BEFORE_LANE_SHARE = 0.14;
+
+export interface PlottedPoint {
+  x: number;
+  y: number;
+  opening: boolean;
+  price: number;
+}
+
+export interface PlottedSession {
+  coords: PlottedPoint[];
+  /** Amber window. Wide enough to read those fifteen minutes, not a time-proportional sliver. */
+  band: { x: number; width: number } | null;
+  /** Closest print to the point of control, sitting on the line. */
+  mark: { x: number; y: number } | null;
+  /** Vertical position of the point-of-control price. */
+  levelY: number | null;
+}
+
+/**
+ * Lay out the session line. The opening window gets a fixed share of the width
+ * so the amber stretch stays readable. The other prints share what's left.
+ */
+export function plotSession(
+  points: SparkPoint[],
+  width: number,
+  height: number,
+  poc: number | null,
+): PlottedSession {
+  const pad = 16;
+  const prices = points.map((point) => point.price);
+  if (poc != null && Number.isFinite(poc)) prices.push(poc);
+  const min = prices.length ? Math.min(...prices) : 0;
+  const max = prices.length ? Math.max(...prices) : 0;
+  const span = max - min;
+  const yOf = (price: number) =>
+    span === 0 ? height / 2 : pad + (1 - (price - min) / span) * (height - pad * 2);
+
+  const first = points.findIndex((point) => point.opening);
+  const last = lastOpeningIndex(points);
+  const shares = laneShares(first, last, points.length);
+  const beforeW = shares.before * width;
+  const openW = shares.open * width;
+  const afterW = shares.after * width;
+
+  const coords = points.map((point, index) => ({
+    x: xFor(index, points.length, first, last, width, beforeW, openW, afterW),
+    y: yOf(point.price),
+    opening: point.opening,
+    price: point.price,
+  }));
+
+  const levelY = poc != null && Number.isFinite(poc) ? yOf(poc) : null;
+  return {
+    coords,
+    band: first < 0 ? null : { x: beforeW, width: openW },
+    mark: closestMark(coords, poc),
+    levelY,
+  };
+}
+
+function lastOpeningIndex(points: SparkPoint[]): number {
+  for (let index = points.length - 1; index >= 0; index -= 1) {
+    if (points[index].opening) return index;
+  }
+  return -1;
+}
+
+function laneShares(first: number, last: number, count: number) {
+  if (first < 0 || last < 0) return { before: 0, open: 0, after: 1 };
+  const hasBefore = first > 0;
+  const hasAfter = last < count - 1;
+  if (!hasBefore && !hasAfter) return { before: 0, open: 1, after: 0 };
+  if (!hasBefore) return { before: 0, open: OPENING_LANE_SHARE, after: 1 - OPENING_LANE_SHARE };
+  if (!hasAfter) return { before: 0.22, open: 0.78, after: 0 };
+  return { before: BEFORE_LANE_SHARE, open: OPENING_LANE_SHARE, after: 1 - BEFORE_LANE_SHARE - OPENING_LANE_SHARE };
+}
+
+function xFor(
+  index: number,
+  count: number,
+  first: number,
+  last: number,
+  width: number,
+  beforeW: number,
+  openW: number,
+  afterW: number,
+): number {
+  if (count <= 1) return width / 2;
+  if (first < 0) return (index / (count - 1)) * width;
+  if (last === first && index === first) return beforeW + openW / 2;
+  if (index <= first) return first === 0 ? beforeW : (index / first) * beforeW;
+  if (index <= last) return beforeW + ((index - first) / (last - first)) * openW;
+  return beforeW + openW + ((index - last) / (count - 1 - last)) * afterW;
+}
+
+function closestMark(coords: PlottedPoint[], poc: number | null): { x: number; y: number } | null {
+  if (poc == null || !Number.isFinite(poc) || coords.length === 0) return null;
+  let best = coords[0];
+  let bestDistance = Math.abs(best.price - poc);
+  for (const point of coords) {
+    const distance = Math.abs(point.price - poc);
+    if (distance < bestDistance) {
+      best = point;
+      bestDistance = distance;
+    }
+  }
+  return { x: best.x, y: best.y };
+}
+
 function addVolume(bins: Map<number, number>, low: number, high: number, volume: number) {
   const start = Math.round(Math.min(low, high) * CENT);
   const end = Math.round(Math.max(low, high) * CENT);
