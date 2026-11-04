@@ -6,13 +6,17 @@ import type { Quote, SessionInfo } from "../lib/types";
 import { useQuotes } from "../hooks/useQuotes";
 import { useWatchlist } from "../hooks/useWatchlist";
 import { MarketLevels } from "./MarketLevels";
-import { QuoteTable, type SignalFilter } from "./QuoteTable";
+import { QuoteTable, type QuoteLayout, type SignalFilter } from "./QuoteTable";
 
 export function Dashboard() {
   const watchlist = useWatchlist();
   const [sortMode, setSortMode] = useStoredState<SortMode>("opening-range-sort", "breakouts", [
     "breakouts",
     "list",
+  ]);
+  const [layout, setLayout] = useStoredState<QuoteLayout>("opening-range-layout", "expanded", [
+    "expanded",
+    "condensed",
   ]);
   const [filter, setFilter] = useState<SignalFilter>("all");
   const [draft, setDraft] = useState("");
@@ -100,6 +104,14 @@ export function Dashboard() {
           <button type="button" className="btn" onClick={refreshNow} disabled={refreshing} data-testid="refresh">
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
+          <div className="segment" role="group" aria-label="Layout">
+            <button type="button" aria-pressed={layout === "expanded"} onClick={() => setLayout("expanded")}>
+              Expanded
+            </button>
+            <button type="button" aria-pressed={layout === "condensed"} onClick={() => setLayout("condensed")}>
+              Condensed
+            </button>
+          </div>
           <div className="segment" role="group" aria-label="Sort">
             <button type="button" aria-pressed={sortMode === "breakouts"} onClick={() => setSortMode("breakouts")}>
               Breakouts first
@@ -155,6 +167,7 @@ export function Dashboard() {
             quotes={quotesForTable}
             sortMode={sortMode}
             filter={activeFilter}
+            layout={layout}
             onRemove={watchlist.remove}
           />
         )}

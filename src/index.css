@@ -267,6 +267,16 @@ table {
   min-width: 860px;
 }
 
+table.layout-condensed { min-width: 1080px; }
+
+.spark-col { width: 268px; }
+
+.spark-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 tr.quote-main td { border-bottom: 0; padding-bottom: 4px; }
 
 tr.spark-row td { padding: 0 14px 16px; }
@@ -284,6 +294,12 @@ tr.spark-row td { padding: 0 14px 16px; }
   height: auto;
 }
 
+.sparkline-condensed {
+  width: 168px;
+  height: 36px;
+  flex: none;
+}
+
 .sparkline path {
   fill: none;
   stroke-linecap: round;
@@ -299,6 +315,10 @@ tr.spark-row td { padding: 0 14px 16px; }
   stroke: var(--forming);
   stroke-width: 3.6;
 }
+
+.sparkline-condensed path.spark-rest { stroke-width: 1.8; }
+.sparkline-condensed path.spark-open { stroke-width: 2.4; }
+.sparkline-condensed .poc-level { stroke-width: 1.15; }
 
 .spark-open-band { fill: rgba(240, 195, 106, 0.34); }
 
@@ -340,9 +360,15 @@ tr.spark-row td { padding: 0 14px 16px; }
   color: var(--text);
 }
 
+.poc-inline { margin: 0; text-align: left; }
+.poc-inline .poc-label { font-size: 10px; letter-spacing: 0.06em; }
+.poc-inline .poc-price { margin-top: 1px; font-size: 12px; }
+
 .sparkline-empty { display: block; width: 100%; height: 96px; }
+.sparkline-empty.sparkline-condensed { width: 168px; height: 36px; }
 
 .spark-bar { display: block; width: 100%; height: 96px; }
+.spark-bar-condensed { width: 168px; height: 36px; }
 
 th {
   text-align: left;

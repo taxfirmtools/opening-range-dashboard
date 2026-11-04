@@ -4,26 +4,26 @@ import { plotSession } from "../lib/sparkline";
 import { sortQuotes, type SortMode } from "../lib/sort";
 import type { Quote, Signal, SparkPoint } from "../lib/types";
 
-const COLUMNS = 7;
-const CHART_WIDTH = 720;
-const CHART_HEIGHT = 96;
+const EXPANDED_COLUMNS = 7;
 
 export type SignalFilter = "all" | "above" | "below" | "inside";
+export type QuoteLayout = "expanded" | "condensed";
 
 interface QuoteTableProps {
   symbols: string[];
   quotes: Quote[] | null;
   sortMode: SortMode;
   filter: SignalFilter;
+  layout: QuoteLayout;
   onRemove: (symbol: string) => void;
 }
 
-export function QuoteTable({ symbols, quotes, sortMode, filter, onRemove }: QuoteTableProps) {
+export function QuoteTable({ symbols, quotes, sortMode, filter, layout, onRemove }: QuoteTableProps) {
   if (!quotes) {
     return (
-      <TableShell testId="loading-state" busy>
+      <TableShell testId="loading-state" busy layout={layout}>
         {symbols.map((symbol) => (
-          <SkeletonRow key={symbol} symbol={symbol} />
+          <SkeletonRow key={symbol} symbol={symbol} layout={layout} />
         ))}
       </TableShell>
     );
@@ -53,12 +53,12 @@ export function QuoteTable({ symbols, quotes, sortMode, filter, onRemove }: Quot
   ];
 
   return (
-    <TableShell testId="quote-table">
+    <TableShell testId="quote-table" layout={layout}>
       {rows.map((row) =>
         row.kind === "loading" ? (
-          <SkeletonRow key={row.symbol} symbol={row.symbol} />
+          <SkeletonRow key={row.symbol} symbol={row.symbol} layout={layout} />
         ) : (
-          <QuoteRow key={row.quote.symbol} quote={row.quote} onRemove={onRemove} />
+          <QuoteRow key={row.quote.symbol} quote={row.quote} layout={layout} onRemove={onRemove} />
         ),
       )}
     </TableShell>
@@ -68,15 +68,17 @@ export function QuoteTable({ symbols, quotes, sortMode, filter, onRemove }: Quot
 function TableShell({
   children,
   testId,
+  layout,
   busy = false,
 }: {
   children: ReactNode;
   testId: string;
+  layout: QuoteLayout;
   busy?: boolean;
 }) {
   return (
     <div className="table-scroll">
-      <table data-testid={testId} aria-busy={busy}>
+      <table data-testid={testId} data-layout={layout} aria-busy={busy} className={`layout-${layout}`}>
         <caption className="sr-only">Opening range by symbol</caption>
         <thead>
           <tr>
@@ -96,6 +98,11 @@ function TableShell({
             <th scope="col" className="track-col">
               Versus range
             </th>
+            {layout === "condensed" ? (
+              <th scope="col" className="spark-col">
+                <span className="sr-only">Today and point of control</span>
+              </th>
+            ) : null}
             <th scope="col">
               <span className="sr-only">Remove</span>
             </th>
@@ -107,9 +114,50 @@ function TableShell({
   );
 }
 
-function QuoteRow({ quote, onRemove }: { quote: Quote; onRemove: (symbol: string) => void }) {
+function QuoteRow({
+  quote,
+  layout,
+  onRemove,
+}: {
+  quote: Quote;
+  layout: QuoteLayout;
+  onRemove: (symbol: string) => void;
+}) {
   const change = formatChange(quote.last, quote.previousClose);
   const outside = quote.signal === "above" || quote.signal === "below";
+  const cells = (
+    <>
+      <td>
+        <span className="symbol">{quote.symbol}</span>
+        {quote.name ? <span className="name">{quote.name}</span> : null}
+        {quote.error ? <span className="extension">{quote.error}</span> : null}
+      </td>
+      <td className="num price">{formatPrice(quote.last)}</td>
+      <td className={change ? `num chg ${change.direction}` : "num chg flat"}>{change ? change.text : "—"}</td>
+      <td className="num">{formatPrice(quote.orHigh)}</td>
+      <td className="num">{formatPrice(quote.orLow)}</td>
+      <td>
+        <RangeTrack quote={quote} />
+      </td>
+      {layout === "condensed" ? (
+        <td>
+          <Sparkline points={quote.sparkline} poc={quote.poc} layout="condensed" />
+        </td>
+      ) : null}
+      <td>
+        <button type="button" className="remove" onClick={() => onRemove(quote.symbol)} aria-label={`Remove ${quote.symbol}`}>
+          ×
+        </button>
+      </td>
+    </>
+  );
+  if (layout === "condensed") {
+    return (
+      <tr data-signal={quote.signal} data-testid={`row-${quote.symbol}`} className={outside ? "is-outside" : undefined}>
+        {cells}
+      </tr>
+    );
+  }
   return (
     <>
       <tr
@@ -117,60 +165,61 @@ function QuoteRow({ quote, onRemove }: { quote: Quote; onRemove: (symbol: string
         data-testid={`row-${quote.symbol}`}
         className={outside ? "is-outside quote-main" : "quote-main"}
       >
-        <td>
-          <span className="symbol">{quote.symbol}</span>
-          {quote.name ? <span className="name">{quote.name}</span> : null}
-          {quote.error ? <span className="extension">{quote.error}</span> : null}
-        </td>
-        <td className="num price">{formatPrice(quote.last)}</td>
-        <td className={change ? `num chg ${change.direction}` : "num chg flat"}>{change ? change.text : "—"}</td>
-        <td className="num">{formatPrice(quote.orHigh)}</td>
-        <td className="num">{formatPrice(quote.orLow)}</td>
-        <td>
-          <RangeTrack quote={quote} />
-        </td>
-        <td>
-          <button type="button" className="remove" onClick={() => onRemove(quote.symbol)} aria-label={`Remove ${quote.symbol}`}>
-            ×
-          </button>
-        </td>
+        {cells}
       </tr>
       <tr data-signal={quote.signal} className="spark-row">
-        <td colSpan={COLUMNS}>
-          <Sparkline points={quote.sparkline} poc={quote.poc} />
+        <td colSpan={EXPANDED_COLUMNS}>
+          <Sparkline points={quote.sparkline} poc={quote.poc} layout="expanded" />
         </td>
       </tr>
     </>
   );
 }
 
-function SkeletonRow({ symbol }: { symbol: string }) {
+function SkeletonRow({ symbol, layout }: { symbol: string; layout: QuoteLayout }) {
+  const cells = (
+    <>
+      <td>
+        <span className="symbol">{symbol}</span>
+        <span className="skeleton name-bar" />
+      </td>
+      <td className="num">
+        <span className="skeleton price-bar" />
+      </td>
+      <td className="num">
+        <span className="skeleton change-bar" />
+      </td>
+      <td className="num">
+        <span className="skeleton price-bar" />
+      </td>
+      <td className="num">
+        <span className="skeleton price-bar" />
+      </td>
+      <td>
+        <span className="skeleton track-bar" />
+      </td>
+      {layout === "condensed" ? (
+        <td>
+          <span className="skeleton spark-bar spark-bar-condensed" />
+        </td>
+      ) : null}
+      <td />
+    </>
+  );
+  if (layout === "condensed") {
+    return (
+      <tr className="is-loading" data-testid="loading-row">
+        {cells}
+      </tr>
+    );
+  }
   return (
     <>
       <tr className="is-loading quote-main" data-testid="loading-row">
-        <td>
-          <span className="symbol">{symbol}</span>
-          <span className="skeleton name-bar" />
-        </td>
-        <td className="num">
-          <span className="skeleton price-bar" />
-        </td>
-        <td className="num">
-          <span className="skeleton change-bar" />
-        </td>
-        <td className="num">
-          <span className="skeleton price-bar" />
-        </td>
-        <td className="num">
-          <span className="skeleton price-bar" />
-        </td>
-        <td>
-          <span className="skeleton track-bar" />
-        </td>
-        <td />
+        {cells}
       </tr>
       <tr className="is-loading spark-row">
-        <td colSpan={COLUMNS}>
+        <td colSpan={EXPANDED_COLUMNS}>
           <span className="skeleton spark-bar" />
         </td>
       </tr>
@@ -178,49 +227,64 @@ function SkeletonRow({ symbol }: { symbol: string }) {
   );
 }
 
-function Sparkline({ points, poc }: { points: SparkPoint[] | undefined; poc: number | null }) {
+const CHARTS = {
+  expanded: { width: 720, height: 96, ring: 11, dot: 6.5 },
+  condensed: { width: 220, height: 44, ring: 5.5, dot: 3.2 },
+} as const;
+
+function Sparkline({
+  points,
+  poc,
+  layout,
+}: {
+  points: SparkPoint[] | undefined;
+  poc: number | null;
+  layout: QuoteLayout;
+}) {
   const values = (points ?? []).filter((point) => Number.isFinite(point.price));
   const chart =
     values.length < 2 ? (
-      <span className="sparkline sparkline-empty" aria-hidden="true" />
+      <span className={`sparkline sparkline-empty sparkline-${layout}`} aria-hidden="true" />
     ) : (
-      <SparkChart points={values} poc={poc} />
+      <SparkChart points={values} poc={poc} layout={layout} />
     );
+  const label = layout === "expanded" ? "Point of control" : "POC";
   return (
-    <div className="spark-panel">
+    <div className={layout === "expanded" ? "spark-panel" : "spark-cell"}>
       {chart}
-      <p className="poc" data-testid="poc">
-        <span className="poc-label">Point of control</span>
+      <p className={layout === "expanded" ? "poc" : "poc poc-inline"} data-testid="poc">
+        <span className="poc-label">{label}</span>
         <span className="poc-price">{formatPrice(poc)}</span>
       </p>
     </div>
   );
 }
 
-function SparkChart({ points, poc }: { points: SparkPoint[]; poc: number | null }) {
-  const plotted = plotSession(points, CHART_WIDTH, CHART_HEIGHT, poc);
+function SparkChart({ points, poc, layout }: { points: SparkPoint[]; poc: number | null; layout: QuoteLayout }) {
+  const chart = CHARTS[layout];
+  const plotted = plotSession(points, chart.width, chart.height, poc);
   const paths = coloredPaths(plotted.coords);
   return (
     <svg
-      className="sparkline"
-      viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-      width={CHART_WIDTH}
-      height={CHART_HEIGHT}
+      className={`sparkline sparkline-${layout}`}
+      viewBox={`0 0 ${chart.width} ${chart.height}`}
+      width={chart.width}
+      height={chart.height}
       aria-hidden="true"
     >
       {plotted.band ? (
-        <rect className="spark-open-band" x={plotted.band.x} y={0} width={plotted.band.width} height={CHART_HEIGHT} />
+        <rect className="spark-open-band" x={plotted.band.x} y={0} width={plotted.band.width} height={chart.height} />
       ) : null}
       {plotted.levelY != null ? (
-        <line className="poc-level" x1={0} x2={CHART_WIDTH} y1={plotted.levelY} y2={plotted.levelY} />
+        <line className="poc-level" x1={0} x2={chart.width} y1={plotted.levelY} y2={plotted.levelY} />
       ) : null}
       {paths.map((path) => (
         <path key={path.key} className={path.opening ? "spark-open" : "spark-rest"} d={path.d} />
       ))}
       {plotted.mark ? (
         <>
-          <circle className="poc-mark-ring" cx={plotted.mark.x} cy={plotted.mark.y} r={11} />
-          <circle className="poc-mark" cx={plotted.mark.x} cy={plotted.mark.y} r={6.5} />
+          <circle className="poc-mark-ring" cx={plotted.mark.x} cy={plotted.mark.y} r={chart.ring} />
+          <circle className="poc-mark" cx={plotted.mark.x} cy={plotted.mark.y} r={chart.dot} />
         </>
       ) : null}
     </svg>
