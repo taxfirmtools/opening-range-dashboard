@@ -1,10 +1,8 @@
 import type { ReactNode } from "react";
 import { formatChange, formatPrice } from "../lib/format";
-import { MAX_CONNECTED_GAP_MS, plotSession } from "../lib/sparkline";
+import { plotSession } from "../lib/sparkline";
 import { sortQuotes, type SortMode } from "../lib/sort";
 import type { Quote, Signal, SparkPoint } from "../lib/types";
-
-const EXPANDED_COLUMNS = 7;
 
 export type SignalFilter = "all" | "above" | "below" | "inside";
 export type QuoteLayout = "expanded" | "condensed";
@@ -98,11 +96,9 @@ function TableShell({
             <th scope="col" className="track-col">
               Versus range
             </th>
-            {layout === "condensed" ? (
-              <th scope="col" className="spark-col">
-                <span className="sr-only">Today and point of control</span>
-              </th>
-            ) : null}
+            <th scope="col" className="spark-col">
+              <span className="sr-only">Last 24 hours and point of control</span>
+            </th>
             <th scope="col">
               <span className="sr-only">Remove</span>
             </th>
@@ -139,11 +135,9 @@ function QuoteRow({
       <td>
         <RangeTrack quote={quote} />
       </td>
-      {layout === "condensed" ? (
-        <td>
-          <Sparkline points={quote.sparkline} poc={quote.poc} layout="condensed" />
-        </td>
-      ) : null}
+      <td>
+        <Sparkline points={quote.sparkline} poc={quote.poc} layout={layout} />
+      </td>
       <td>
         <button type="button" className="remove" onClick={() => onRemove(quote.symbol)} aria-label={`Remove ${quote.symbol}`}>
           ×
@@ -151,28 +145,10 @@ function QuoteRow({
       </td>
     </>
   );
-  if (layout === "condensed") {
-    return (
-      <tr data-signal={quote.signal} data-testid={`row-${quote.symbol}`} className={outside ? "is-outside" : undefined}>
-        {cells}
-      </tr>
-    );
-  }
   return (
-    <>
-      <tr
-        data-signal={quote.signal}
-        data-testid={`row-${quote.symbol}`}
-        className={outside ? "is-outside quote-main" : "quote-main"}
-      >
-        {cells}
-      </tr>
-      <tr data-signal={quote.signal} className="spark-row">
-        <td colSpan={EXPANDED_COLUMNS}>
-          <Sparkline points={quote.sparkline} poc={quote.poc} layout="expanded" />
-        </td>
-      </tr>
-    </>
+    <tr data-signal={quote.signal} data-testid={`row-${quote.symbol}`} className={outside ? "is-outside" : undefined}>
+      {cells}
+    </tr>
   );
 }
 
@@ -198,38 +174,22 @@ function SkeletonRow({ symbol, layout }: { symbol: string; layout: QuoteLayout }
       <td>
         <span className="skeleton track-bar" />
       </td>
-      {layout === "condensed" ? (
-        <td>
-          <span className="skeleton spark-bar spark-bar-condensed" />
-        </td>
-      ) : null}
+      <td>
+        <span className={`skeleton spark-bar spark-bar-${layout}`} />
+      </td>
       <td />
     </>
   );
-  if (layout === "condensed") {
-    return (
-      <tr className="is-loading" data-testid="loading-row">
-        {cells}
-      </tr>
-    );
-  }
   return (
-    <>
-      <tr className="is-loading quote-main" data-testid="loading-row">
-        {cells}
-      </tr>
-      <tr className="is-loading spark-row">
-        <td colSpan={EXPANDED_COLUMNS}>
-          <span className="skeleton spark-bar" />
-        </td>
-      </tr>
-    </>
+    <tr className="is-loading" data-testid="loading-row">
+      {cells}
+    </tr>
   );
 }
 
 const CHARTS = {
-  expanded: { width: 720, height: 96, ring: 11, dot: 6.5 },
-  condensed: { width: 220, height: 44, ring: 5.5, dot: 3.2 },
+  expanded: { width: 132, height: 40, ring: 3.6, dot: 2 },
+  condensed: { width: 104, height: 28, ring: 3.2, dot: 1.8 },
 } as const;
 
 function Sparkline({
@@ -246,13 +206,13 @@ function Sparkline({
   const plotted = values.length === 0 ? null : plotSession(values, chart.width, chart.height, poc);
   const label = layout === "expanded" ? "Point of control" : "POC";
   return (
-    <div className={layout === "expanded" ? "spark-panel" : "spark-cell"}>
+    <div className="spark-cell">
       {plotted && plotted.coords.length >= 2 ? (
         <SparkChart plotted={plotted} layout={layout} />
       ) : (
         <span className={`sparkline sparkline-empty sparkline-${layout}`} aria-hidden="true" />
       )}
-      <p className={layout === "expanded" ? "poc" : "poc poc-inline"} data-testid="poc">
+      <p className="poc poc-inline" data-testid="poc">
         <span className="poc-label">{label}</span>
         <span className="poc-price">{formatPrice(poc)}</span>
       </p>
@@ -268,7 +228,6 @@ function SparkChart({
   layout: QuoteLayout;
 }) {
   const chart = CHARTS[layout];
-  const bars = minuteBars(plotted.coords);
   const paths = coloredPaths(plotted.coords);
   return (
     <svg
@@ -281,9 +240,6 @@ function SparkChart({
       {plotted.band ? (
         <rect className="spark-open-band" x={plotted.band.x} y={0} width={plotted.band.width} height={chart.height} />
       ) : null}
-      {bars.map((bar) => (
-        <path key={bar.key} className={bar.opening ? "minute-open" : "minute-rest"} d={bar.d} />
-      ))}
       {plotted.level ? (
         <line className="poc-level" x1={plotted.level.x1} x2={plotted.level.x2} y1={plotted.level.y} y2={plotted.level.y} />
       ) : null}
@@ -300,33 +256,13 @@ function SparkChart({
   );
 }
 
-function minuteBars(coords: Array<{ x: number; yTop: number; yBottom: number; opening: boolean }>) {
-  const groups = new Map<boolean, string[]>();
-  for (const point of coords) {
-    const draw = groups.get(point.opening) ?? [];
-    draw.push(`M${point.x.toFixed(1)} ${point.yTop.toFixed(1)} L${point.x.toFixed(1)} ${point.yBottom.toFixed(1)}`);
-    groups.set(point.opening, draw);
-  }
-  return [...groups.entries()].map(([opening, commands]) => ({
-    key: opening ? "open-bars" : "rest-bars",
-    opening,
-    d: commands.join(" "),
-  }));
-}
-
-function coloredPaths(coords: Array<{ x: number; y: number; opening: boolean; t: number }>) {
+function coloredPaths(coords: Array<{ x: number; y: number; opening: boolean }>) {
   const paths: Array<{ key: string; opening: boolean; d: string }> = [];
   let start = 0;
   for (let index = 1; index <= coords.length; index += 1) {
-    const previous = coords[index - 1];
     const next = coords[index];
-    const gap = next != null && next.t - previous.t > MAX_CONNECTED_GAP_MS;
-    const colorChange = next != null && next.opening !== previous.opening;
-    if (next != null && !gap && !colorChange) continue;
-    const draw =
-      start > 0 && !gap && coords[start].t - coords[start - 1].t <= MAX_CONNECTED_GAP_MS
-        ? [coords[start - 1], ...coords.slice(start, index)]
-        : coords.slice(start, index);
+    if (next != null && next.opening === coords[index - 1].opening) continue;
+    const draw = start > 0 ? [coords[start - 1], ...coords.slice(start, index)] : coords.slice(start, index);
     if (draw.length >= 2) {
       paths.push({
         key: `${start}-${index}`,
