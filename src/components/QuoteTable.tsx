@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { formatChange, formatPrice } from "../lib/format";
-import { plotSession } from "../lib/sparkline";
+import { MAX_CONNECTED_GAP_MS, plotSession } from "../lib/sparkline";
 import { sortQuotes, type SortMode } from "../lib/sort";
 import type { Quote, Signal, SparkPoint } from "../lib/types";
 
@@ -241,17 +241,17 @@ function Sparkline({
   poc: number | null;
   layout: QuoteLayout;
 }) {
-  const values = (points ?? []).filter((point) => Number.isFinite(point.price));
-  const chart =
-    values.length < 2 ? (
-      <span className={`sparkline sparkline-empty sparkline-${layout}`} aria-hidden="true" />
-    ) : (
-      <SparkChart points={values} poc={poc} layout={layout} />
-    );
+  const values = (points ?? []).filter((point) => Number.isFinite(point.price) && Number.isFinite(point.t));
+  const chart = CHARTS[layout];
+  const plotted = values.length === 0 ? null : plotSession(values, chart.width, chart.height, poc);
   const label = layout === "expanded" ? "Point of control" : "POC";
   return (
     <div className={layout === "expanded" ? "spark-panel" : "spark-cell"}>
-      {chart}
+      {plotted && plotted.coords.length >= 2 ? (
+        <SparkChart plotted={plotted} layout={layout} />
+      ) : (
+        <span className={`sparkline sparkline-empty sparkline-${layout}`} aria-hidden="true" />
+      )}
       <p className={layout === "expanded" ? "poc" : "poc poc-inline"} data-testid="poc">
         <span className="poc-label">{label}</span>
         <span className="poc-price">{formatPrice(poc)}</span>
@@ -260,9 +260,15 @@ function Sparkline({
   );
 }
 
-function SparkChart({ points, poc, layout }: { points: SparkPoint[]; poc: number | null; layout: QuoteLayout }) {
+function SparkChart({
+  plotted,
+  layout,
+}: {
+  plotted: ReturnType<typeof plotSession>;
+  layout: QuoteLayout;
+}) {
   const chart = CHARTS[layout];
-  const plotted = plotSession(points, chart.width, chart.height, poc);
+  const bars = minuteBars(plotted.coords);
   const paths = coloredPaths(plotted.coords);
   return (
     <svg
@@ -275,8 +281,11 @@ function SparkChart({ points, poc, layout }: { points: SparkPoint[]; poc: number
       {plotted.band ? (
         <rect className="spark-open-band" x={plotted.band.x} y={0} width={plotted.band.width} height={chart.height} />
       ) : null}
-      {plotted.levelY != null ? (
-        <line className="poc-level" x1={0} x2={chart.width} y1={plotted.levelY} y2={plotted.levelY} />
+      {bars.map((bar) => (
+        <path key={bar.key} className={bar.opening ? "minute-open" : "minute-rest"} d={bar.d} />
+      ))}
+      {plotted.level ? (
+        <line className="poc-level" x1={plotted.level.x1} x2={plotted.level.x2} y1={plotted.level.y} y2={plotted.level.y} />
       ) : null}
       {paths.map((path) => (
         <path key={path.key} className={path.opening ? "spark-open" : "spark-rest"} d={path.d} />
@@ -291,13 +300,33 @@ function SparkChart({ points, poc, layout }: { points: SparkPoint[]; poc: number
   );
 }
 
-function coloredPaths(coords: Array<{ x: number; y: number; opening: boolean }>) {
+function minuteBars(coords: Array<{ x: number; yTop: number; yBottom: number; opening: boolean }>) {
+  const groups = new Map<boolean, string[]>();
+  for (const point of coords) {
+    const draw = groups.get(point.opening) ?? [];
+    draw.push(`M${point.x.toFixed(1)} ${point.yTop.toFixed(1)} L${point.x.toFixed(1)} ${point.yBottom.toFixed(1)}`);
+    groups.set(point.opening, draw);
+  }
+  return [...groups.entries()].map(([opening, commands]) => ({
+    key: opening ? "open-bars" : "rest-bars",
+    opening,
+    d: commands.join(" "),
+  }));
+}
+
+function coloredPaths(coords: Array<{ x: number; y: number; opening: boolean; t: number }>) {
   const paths: Array<{ key: string; opening: boolean; d: string }> = [];
   let start = 0;
   for (let index = 1; index <= coords.length; index += 1) {
-    const ended = index === coords.length || coords[index].opening !== coords[start].opening;
-    if (!ended) continue;
-    const draw = start > 0 ? [coords[start - 1], ...coords.slice(start, index)] : coords.slice(start, index);
+    const previous = coords[index - 1];
+    const next = coords[index];
+    const gap = next != null && next.t - previous.t > MAX_CONNECTED_GAP_MS;
+    const colorChange = next != null && next.opening !== previous.opening;
+    if (next != null && !gap && !colorChange) continue;
+    const draw =
+      start > 0 && !gap && coords[start].t - coords[start - 1].t <= MAX_CONNECTED_GAP_MS
+        ? [coords[start - 1], ...coords.slice(start, index)]
+        : coords.slice(start, index);
     if (draw.length >= 2) {
       paths.push({
         key: `${start}-${index}`,

@@ -130,6 +130,22 @@ export function closeMinutesFor(ymd: string): number {
   return EARLY_CLOSES.has(ymd) ? EARLY_CLOSE_MINUTES : REGULAR_CLOSE_MINUTES;
 }
 
+/** Unix milliseconds for a clock time on an Eastern calendar day. Minutes are since midnight ET. */
+export function nyTimestamp(ymd: string, minutes: number): number {
+  const [year, month, day] = ymd.split("-").map(Number);
+  const hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+  let utc = Date.UTC(year, month - 1, day, hour, minute);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const clock = nyClock(new Date(utc));
+    const got = Date.UTC(clock.year, clock.month - 1, clock.day, clock.hour, clock.minute);
+    const want = Date.UTC(year, month - 1, day, hour, minute);
+    if (got === want) return utc;
+    utc -= got - want;
+  }
+  return utc;
+}
+
 export function previousTradingDay(ymd: string): string {
   let cursor = ymd;
   for (let i = 0; i < 14; i += 1) {

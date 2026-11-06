@@ -8,9 +8,14 @@ export interface Bar {
   volume?: number | null;
 }
 
-/** One sparkline print, oldest first. */
+/** One real minute bar, oldest first. */
 export interface SparkPoint {
+  /** Unix epoch milliseconds at the start of the minute. */
+  t: number;
+  /** Close of the minute. */
   price: number;
+  high: number;
+  low: number;
   /** True for a print inside the 9:30–9:45 ET opening window. The 9:45 bar is not included. */
   opening: boolean;
 }

@@ -306,18 +306,39 @@ tr.spark-row td { padding: 0 14px 16px; }
   stroke-linejoin: round;
 }
 
+.sparkline path.minute-rest,
+.sparkline path.minute-open,
+.sparkline path.spark-rest,
+.sparkline path.spark-open {
+  fill: none;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+}
+
+.sparkline path.minute-rest,
 .sparkline path.spark-rest {
   stroke: var(--above);
-  stroke-width: 2.6;
 }
 
+.sparkline path.minute-open,
 .sparkline path.spark-open {
   stroke: var(--forming);
-  stroke-width: 3.6;
 }
 
-.sparkline-condensed path.spark-rest { stroke-width: 1.8; }
-.sparkline-condensed path.spark-open { stroke-width: 2.4; }
+.sparkline path.minute-rest,
+.sparkline path.minute-open {
+  stroke-width: 1.15;
+}
+
+.sparkline path.spark-rest,
+.sparkline path.spark-open {
+  stroke-width: 1.35;
+}
+
+.sparkline-condensed path.spark-rest,
+.sparkline-condensed path.spark-open { stroke-width: 1.15; }
+.sparkline-condensed path.minute-rest,
+.sparkline-condensed path.minute-open { stroke-width: 1; }
 .sparkline-condensed .poc-level { stroke-width: 1.15; }
 
 .spark-open-band { fill: rgba(240, 195, 106, 0.34); }

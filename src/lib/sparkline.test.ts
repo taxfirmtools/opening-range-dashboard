@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { OPENING_LANE_SHARE, daySparkline, plotSession } from "./sparkline";
+import { daySparkline, plotSession } from "./sparkline";
+import { nyTimestamp } from "./time";
 import type { Bar, SparkPoint } from "./types";
+
+function point(ymd: string, minutes: number, price: number, opening: boolean): SparkPoint {
+  return { t: nyTimestamp(ymd, minutes), price, high: price + 0.4, low: price - 0.4, opening };
+}
+
+function sessionMinutes(ymd: string, from: number, to: number): SparkPoint[] {
+  const points: SparkPoint[] = [];
+  for (let minutes = from; minutes <= to; minutes += 1) {
+    const opening = minutes >= 9 * 60 + 30 && minutes < 9 * 60 + 45;
+    points.push(point(ymd, minutes, 100 + (minutes - from) * 0.05, opening));
+  }
+  return points;
+}
 
 function bar(iso: string, close: number, volume = 0, high = close, low = close): Bar {
   return { t: Date.parse(iso), high, low, close, volume };
@@ -80,23 +94,45 @@ describe("day sparkline", () => {
     expect(line.poc).toBe(10);
   });
 
-  it("gives the opening stretch a readable share of the sparkline", () => {
-    const points: SparkPoint[] = [
-      ...Array.from({ length: 5 }, (_, index) => ({ price: 10 + index, opening: false })),
-      ...Array.from({ length: 4 }, (_, index) => ({ price: 20 + index, opening: true })),
-      ...Array.from({ length: 10 }, (_, index) => ({ price: 30 + index, opening: false })),
-    ];
-    const width = 1_000;
-    const plotted = plotSession(points, width, 96, 22);
-    expect(plotted.band).not.toBeNull();
-    expect(plotted.band?.width).toBeCloseTo(OPENING_LANE_SHARE * width, 5);
-    expect(plotted.coords[5]?.x).toBeCloseTo(plotted.band?.x ?? -1, 5);
-    expect(plotted.coords[8]?.x).toBeCloseTo((plotted.band?.x ?? 0) + (plotted.band?.width ?? 0), 5);
-    expect(plotted.coords[0]?.x).toBe(0);
-    expect(plotted.coords.at(-1)?.x).toBe(width);
-    expect(plotted.coords[8]!.y).toBeLessThan(plotted.coords[5]!.y);
-    expect(plotted.mark).not.toBeNull();
-    expect(plotted.levelY).not.toBeNull();
+  it("stops the morning line at the latest print instead of filling the day", () => {
+    const points = sessionMinutes("2026-11-03", 9 * 60 + 30, 9 * 60 + 40);
+    const width = 390;
+    const plotted = plotSession(points, width, 96, points[5]?.price ?? null);
+    const last = plotted.coords.at(-1);
+    expect(last).toBeDefined();
+    expect(plotted.coords.every((point) => point.opening)).toBe(true);
+    expect(last?.x).toBeCloseTo((10 / 390) * width, 5);
+    expect(last?.x).toBeLessThan(width * 0.1);
+    expect(plotted.band?.x).toBe(0);
+    expect(plotted.band?.width).toBeCloseTo((11 / 390) * width, 5);
+    expect(plotted.level?.x2).toBe(last?.x);
+    expect(plotted.coords[10]!.y).toBeLessThan(plotted.coords[0]!.y);
+  });
+
+  it("keeps each minute the same width through the open and after it", () => {
+    const points = sessionMinutes("2026-11-03", 9 * 60 + 30, 10 * 60 + 15);
+    const width = 390;
+    const plotted = plotSession(points, width, 96, null);
+    const atOpen = plotted.coords[0]!;
+    const at945 = plotted.coords[15]!;
+    const at1015 = plotted.coords.at(-1)!;
+    expect(at945.x - atOpen.x).toBeCloseTo((15 / 390) * width, 5);
+    expect(at1015.x - at945.x).toBeCloseTo((30 / 390) * width, 5);
+    expect(at1015.x).toBeLessThan(width * 0.2);
+    expect(plotted.band?.width).toBeCloseTo((15 / 390) * width, 5);
+  });
+
+  it("drops premarket prints and reaches the right edge only when the session has", () => {
+    const premarket = point("2026-11-03", 8 * 60, 40, false);
+    const close = point("2026-11-03", 15 * 60 + 59, 55, false);
+    const plotted = plotSession(
+      [premarket, ...sessionMinutes("2026-11-03", 9 * 60 + 30, 9 * 60 + 31), close],
+      390,
+      96,
+      null,
+    );
+    expect(plotted.coords[0]?.price).toBe(sessionMinutes("2026-11-03", 9 * 60 + 30, 9 * 60 + 30)[0]?.price);
+    expect(plotted.coords.at(-1)?.x).toBeCloseTo((389 / 390) * 390, 5);
   });
 
   it("has no point of control before the open", () => {

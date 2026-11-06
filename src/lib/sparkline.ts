@@ -1,5 +1,13 @@
 import type { Bar, SparkPoint } from "./types";
-import { OPEN_MINUTES, RANGE_LOCK_MINUTES, isTradingDay, nyClock, previousTradingDay } from "./time";
+import {
+  OPEN_MINUTES,
+  RANGE_LOCK_MINUTES,
+  closeMinutesFor,
+  isTradingDay,
+  nyClock,
+  nyTimestamp,
+  previousTradingDay,
+} from "./time";
 
 export interface SessionShape {
   /** Closes for the shape of the current session, oldest first. */
@@ -35,7 +43,10 @@ export function daySparkline(input: {
   }
 
   const points: SparkPoint[] = closes.map((bar) => ({
+    t: bar.t,
     price: bar.close,
+    high: bar.high,
+    low: bar.low,
     opening: isOpeningWindow(bar.t),
   }));
   const live = input.livePrice;
@@ -44,19 +55,26 @@ export function daySparkline(input: {
     const wrongDay = liveMs != null && (liveMs > nowMs + 60_000 || nyClock(new Date(liveMs)).ymd !== day);
     const stale = liveMs != null && liveMs < (closes.at(-1)?.t ?? -1);
     if (!wrongDay && !stale) {
-      points.push({ price: live, opening: isOpeningWindow(liveMs ?? nowMs) });
+      const t = liveMs ?? nowMs;
+      points.push({ t, price: live, high: live, low: live, opening: isOpeningWindow(t) });
     }
   }
 
   return { points, poc: pointOfControl(input.bars, day, nowMs) };
 }
 
-function closesOnDay(bars: Bar[], day: string, nowMs: number): Array<{ t: number; close: number }> {
-  const closes: Array<{ t: number; close: number }> = [];
+function closesOnDay(
+  bars: Bar[],
+  day: string,
+  nowMs: number,
+): Array<{ t: number; close: number; high: number; low: number }> {
+  const closes: Array<{ t: number; close: number; high: number; low: number }> = [];
   for (const bar of bars) {
     if (bar.close == null || !Number.isFinite(bar.close) || bar.t > nowMs) continue;
     if (nyClock(new Date(bar.t)).ymd !== day) continue;
-    closes.push({ t: bar.t, close: bar.close });
+    const high = bar.high != null && Number.isFinite(bar.high) ? bar.high : bar.close;
+    const low = bar.low != null && Number.isFinite(bar.low) ? bar.low : bar.close;
+    closes.push({ t: bar.t, close: bar.close, high, low });
   }
   closes.sort((a, b) => a.t - b.t);
   return closes;
@@ -98,30 +116,38 @@ function pointOfControl(bars: Bar[], day: string, nowMs: number): number | null 
   return bestCents == null ? null : bestCents / CENT;
 }
 
-/** Share of the sparkline width reserved for the 9:30–9:45 stretch. */
-export const OPENING_LANE_SHARE = 0.34;
-const BEFORE_LANE_SHARE = 0.14;
+const MINUTE_MS = 60_000;
+/** Do not bridge a halt or a missing stretch with a long segment. */
+export const MAX_CONNECTED_GAP_MS = 2 * MINUTE_MS;
 
 export interface PlottedPoint {
   x: number;
   y: number;
+  /** Top of the minute bar. High price, so the smaller SVG y. */
+  yTop: number;
+  /** Bottom of the minute bar. */
+  yBottom: number;
   opening: boolean;
   price: number;
+  t: number;
 }
 
 export interface PlottedSession {
   coords: PlottedPoint[];
-  /** Amber window. Wide enough to read those fifteen minutes, not a time-proportional sliver. */
+  /** Amber window, only through minutes that have actually printed. */
   band: { x: number; width: number } | null;
-  /** Closest print to the point of control, sitting on the line. */
+  /** Closest print to the point of control, sitting on that minute. */
   mark: { x: number; y: number } | null;
-  /** Vertical position of the point-of-control price. */
-  levelY: number | null;
+  /** Point-of-control level, drawn only across the minutes that exist. */
+  level: { x1: number; x2: number; y: number } | null;
 }
 
+const EMPTY_PLOT: PlottedSession = { coords: [], band: null, mark: null, level: null };
+
 /**
- * Lay out the session line. The opening window gets a fixed share of the width
- * so the amber stretch stays readable. The other prints share what's left.
+ * Place each minute at its real time. The axis runs from the 9:30 open through
+ * the regular close, so a morning chart stops at the latest print and leaves
+ * the rest of the day blank. Nothing is resampled to fill the width.
  */
 export function plotSession(
   points: SparkPoint[],
@@ -129,71 +155,61 @@ export function plotSession(
   height: number,
   poc: number | null,
 ): PlottedSession {
-  const pad = 16;
-  const prices = points.map((point) => point.price);
+  const session = points
+    .filter((point) => Number.isFinite(point.t) && Number.isFinite(point.price) && isSessionPrint(point.t))
+    .slice()
+    .sort((a, b) => a.t - b.t);
+  if (session.length === 0) return EMPTY_PLOT;
+
+  const day = nyClock(new Date(session[session.length - 1].t)).ymd;
+  const openMs = nyTimestamp(day, OPEN_MINUTES);
+  const closeMs = nyTimestamp(day, closeMinutesFor(day));
+  const lastMs = session[session.length - 1].t;
+  const axisStart = openMs;
+  const axisEnd = Math.max(closeMs, lastMs);
+  const spanT = Math.max(axisEnd - axisStart, MINUTE_MS);
+  const xOf = (t: number) => ((t - axisStart) / spanT) * width;
+
+  const pad = Math.min(16, height * 0.2);
+  const prices = session.flatMap((point) => [point.price, point.high, point.low]);
   if (poc != null && Number.isFinite(poc)) prices.push(poc);
-  const min = prices.length ? Math.min(...prices) : 0;
-  const max = prices.length ? Math.max(...prices) : 0;
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
   const span = max - min;
   const yOf = (price: number) =>
     span === 0 ? height / 2 : pad + (1 - (price - min) / span) * (height - pad * 2);
 
-  const first = points.findIndex((point) => point.opening);
-  const last = lastOpeningIndex(points);
-  const shares = laneShares(first, last, points.length);
-  const beforeW = shares.before * width;
-  const openW = shares.open * width;
-  const afterW = shares.after * width;
+  const coords = session.map((point) => {
+    const y = yOf(point.price);
+    const top = yOf(Math.max(point.high, point.price));
+    const bottom = yOf(Math.min(point.low, point.price));
+    const bar = Math.max(bottom - top, 1.2);
+    return {
+      x: xOf(point.t),
+      y,
+      yTop: top,
+      yBottom: top + bar,
+      opening: point.opening,
+      price: point.price,
+      t: point.t,
+    };
+  });
 
-  const coords = points.map((point, index) => ({
-    x: xFor(index, points.length, first, last, width, beforeW, openW, afterW),
-    y: yOf(point.price),
-    opening: point.opening,
-    price: point.price,
-  }));
-
+  const openingEnds = openMs + (RANGE_LOCK_MINUTES - OPEN_MINUTES) * MINUTE_MS;
+  const bandEndMs = Math.min(openingEnds, lastMs + MINUTE_MS);
+  const band =
+    lastMs < openMs || bandEndMs <= openMs ? null : { x: xOf(openMs), width: Math.max(xOf(bandEndMs) - xOf(openMs), 0) };
   const levelY = poc != null && Number.isFinite(poc) ? yOf(poc) : null;
   return {
     coords,
-    band: first < 0 ? null : { x: beforeW, width: openW },
+    band,
     mark: closestMark(coords, poc),
-    levelY,
+    level: levelY == null ? null : { x1: coords[0].x, x2: coords[coords.length - 1].x, y: levelY },
   };
 }
 
-function lastOpeningIndex(points: SparkPoint[]): number {
-  for (let index = points.length - 1; index >= 0; index -= 1) {
-    if (points[index].opening) return index;
-  }
-  return -1;
-}
-
-function laneShares(first: number, last: number, count: number) {
-  if (first < 0 || last < 0) return { before: 0, open: 0, after: 1 };
-  const hasBefore = first > 0;
-  const hasAfter = last < count - 1;
-  if (!hasBefore && !hasAfter) return { before: 0, open: 1, after: 0 };
-  if (!hasBefore) return { before: 0, open: OPENING_LANE_SHARE, after: 1 - OPENING_LANE_SHARE };
-  if (!hasAfter) return { before: 0.22, open: 0.78, after: 0 };
-  return { before: BEFORE_LANE_SHARE, open: OPENING_LANE_SHARE, after: 1 - BEFORE_LANE_SHARE - OPENING_LANE_SHARE };
-}
-
-function xFor(
-  index: number,
-  count: number,
-  first: number,
-  last: number,
-  width: number,
-  beforeW: number,
-  openW: number,
-  afterW: number,
-): number {
-  if (count <= 1) return width / 2;
-  if (first < 0) return (index / (count - 1)) * width;
-  if (last === first && index === first) return beforeW + openW / 2;
-  if (index <= first) return first === 0 ? beforeW : (index / first) * beforeW;
-  if (index <= last) return beforeW + ((index - first) / (last - first)) * openW;
-  return beforeW + openW + ((index - last) / (count - 1 - last)) * afterW;
+function isSessionPrint(t: number): boolean {
+  return nyClock(new Date(t)).seconds >= OPEN_MINUTES * 60;
 }
 
 function closestMark(coords: PlottedPoint[], poc: number | null): { x: number; y: number } | null {
