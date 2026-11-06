@@ -4,6 +4,8 @@ import { plotSession } from "../lib/sparkline";
 import { sortQuotes, type SortMode } from "../lib/sort";
 import type { Quote, Signal, SparkPoint } from "../lib/types";
 
+const EXPANDED_COLUMNS = 7;
+
 export type SignalFilter = "all" | "above" | "below" | "inside";
 export type QuoteLayout = "expanded" | "condensed";
 
@@ -96,9 +98,11 @@ function TableShell({
             <th scope="col" className="track-col">
               Versus range
             </th>
-            <th scope="col" className="spark-col">
-              <span className="sr-only">Last 24 hours and point of control</span>
-            </th>
+            {layout === "condensed" ? (
+              <th scope="col" className="spark-col">
+                <span className="sr-only">Last 24 hours and point of control</span>
+              </th>
+            ) : null}
             <th scope="col">
               <span className="sr-only">Remove</span>
             </th>
@@ -135,9 +139,11 @@ function QuoteRow({
       <td>
         <RangeTrack quote={quote} />
       </td>
-      <td>
-        <Sparkline points={quote.sparkline} poc={quote.poc} layout={layout} />
-      </td>
+      {layout === "condensed" ? (
+        <td>
+          <Sparkline points={quote.sparkline} poc={quote.poc} layout="condensed" />
+        </td>
+      ) : null}
       <td>
         <button type="button" className="remove" onClick={() => onRemove(quote.symbol)} aria-label={`Remove ${quote.symbol}`}>
           ×
@@ -145,10 +151,28 @@ function QuoteRow({
       </td>
     </>
   );
+  if (layout === "condensed") {
+    return (
+      <tr data-signal={quote.signal} data-testid={`row-${quote.symbol}`} className={outside ? "is-outside" : undefined}>
+        {cells}
+      </tr>
+    );
+  }
   return (
-    <tr data-signal={quote.signal} data-testid={`row-${quote.symbol}`} className={outside ? "is-outside" : undefined}>
-      {cells}
-    </tr>
+    <>
+      <tr
+        data-signal={quote.signal}
+        data-testid={`row-${quote.symbol}`}
+        className={outside ? "is-outside quote-main" : "quote-main"}
+      >
+        {cells}
+      </tr>
+      <tr data-signal={quote.signal} className="spark-row">
+        <td colSpan={EXPANDED_COLUMNS}>
+          <Sparkline points={quote.sparkline} poc={quote.poc} layout="expanded" />
+        </td>
+      </tr>
+    </>
   );
 }
 
@@ -174,21 +198,37 @@ function SkeletonRow({ symbol, layout }: { symbol: string; layout: QuoteLayout }
       <td>
         <span className="skeleton track-bar" />
       </td>
-      <td>
-        <span className={`skeleton spark-bar spark-bar-${layout}`} />
-      </td>
+      {layout === "condensed" ? (
+        <td>
+          <span className="skeleton spark-bar spark-bar-condensed" />
+        </td>
+      ) : null}
       <td />
     </>
   );
+  if (layout === "condensed") {
+    return (
+      <tr className="is-loading" data-testid="loading-row">
+        {cells}
+      </tr>
+    );
+  }
   return (
-    <tr className="is-loading" data-testid="loading-row">
-      {cells}
-    </tr>
+    <>
+      <tr className="is-loading quote-main" data-testid="loading-row">
+        {cells}
+      </tr>
+      <tr className="is-loading spark-row">
+        <td colSpan={EXPANDED_COLUMNS}>
+          <span className="skeleton spark-bar spark-bar-expanded" />
+        </td>
+      </tr>
+    </>
   );
 }
 
 const CHARTS = {
-  expanded: { width: 132, height: 40, ring: 3.6, dot: 2 },
+  expanded: { width: 640, height: 200, ring: 8, dot: 4.5 },
   condensed: { width: 104, height: 28, ring: 3.2, dot: 1.8 },
 } as const;
 
@@ -206,13 +246,13 @@ function Sparkline({
   const plotted = values.length === 0 ? null : plotSession(values, chart.width, chart.height, poc);
   const label = layout === "expanded" ? "Point of control" : "POC";
   return (
-    <div className="spark-cell">
+    <div className={layout === "expanded" ? "spark-panel" : "spark-cell"}>
       {plotted && plotted.coords.length >= 2 ? (
         <SparkChart plotted={plotted} layout={layout} />
       ) : (
         <span className={`sparkline sparkline-empty sparkline-${layout}`} aria-hidden="true" />
       )}
-      <p className="poc poc-inline" data-testid="poc">
+      <p className={layout === "expanded" ? "poc" : "poc poc-inline"} data-testid="poc">
         <span className="poc-label">{label}</span>
         <span className="poc-price">{formatPrice(poc)}</span>
       </p>
@@ -233,8 +273,9 @@ function SparkChart({
     <svg
       className={`sparkline sparkline-${layout}`}
       viewBox={`0 0 ${chart.width} ${chart.height}`}
-      width={chart.width}
-      height={chart.height}
+      width={layout === "condensed" ? chart.width : undefined}
+      height={layout === "condensed" ? chart.height : undefined}
+      preserveAspectRatio={layout === "expanded" ? "none" : "xMidYMid meet"}
       aria-hidden="true"
     >
       {plotted.band ? (
